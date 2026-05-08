@@ -1,3 +1,9 @@
 from django.contrib import admin
+from .models import EmailVerification
 
-# Register your models here.
+
+@admin.register(EmailVerification)
+class EmailVerificationAdmin(admin.ModelAdmin):
+    list_display = ("user", "token", "created_at", "used_at")
+    search_fields = ("user__username", "user__email", "token")
+    list_filter = ("used_at", "created_at")

@@ -22,14 +22,25 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from users import views as user_views
+from users.forms import EmailVerificationLoginForm
 from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('register/', user_views.register, name='register'),
-    path('login/', auth_views.LoginView.as_view(template_name='users/login.html'), name='login'),
+    path(
+        'login/',
+        auth_views.LoginView.as_view(
+            template_name='users/login.html',
+            authentication_form=EmailVerificationLoginForm,
+        ),
+        name='login'
+    ),
     path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html'), name='logout'),
+    path('api/mobile/login/', user_views.mobile_login, name='mobile_login'),
+    path('api/mobile/register/', user_views.mobile_register, name='mobile_register'),
+    path('verify-email/<uuid:token>/', user_views.verify_email, name='verify_email'),
     path('reflections/', include('reflections.urls')),
 
     path("debug-email/", user_views.debug_email),

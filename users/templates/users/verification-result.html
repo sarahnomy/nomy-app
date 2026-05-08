@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}nomy • Email verification{% endblock %}
+
+{% block content %}
+<style>
+  .verify-wrap{
+    min-height:calc(100vh - 80px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .verify-card{
+    width:100%;
+    max-width:560px;
+    background:#fff;
+    border:1px solid #e1dcf9;
+    border-radius:18px;
+    box-shadow:0 16px 40px rgba(18,14,32,.08);
+    padding:28px;
+    text-align:center;
+  }
+  .verify-card h1{margin:0 0 10px 0;color:#2e2840;font-size:1.9rem;}
+  .verify-card p{margin:0 0 14px 0;color:#5e4f79;font-size:1rem;line-height:1.7;}
+  .verify-link{
+    display:inline-block;
+    margin-top:6px;
+    padding:12px 16px;
+    border-radius:14px;
+    background:#d3cbf9;
+    color:#1e1635;
+    text-decoration:none;
+    font-weight:700;
+  }
+</style>
+
+<div class="verify-wrap">
+  <div class="verify-card">
+    {% if verified %}
+      <h1>Email verified</h1>
+      <p>Your nomy account is active now.</p>
+      <p>You can log in whenever you’re ready.</p>
+      <a class="verify-link" href="{% url 'login' %}">Go to login</a>
+    {% else %}
+      <h1>That link isn’t valid anymore</h1>
+      <p>This verification link may have expired or already been removed.</p>
+      <p>Try signing up again or ask for a fresh verification email next.</p>
+      <a class="verify-link" href="{% url 'register' %}">Create account</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

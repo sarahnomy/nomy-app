@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}nomy • Check your email{% endblock %}
+
+{% block content %}
+<style>
+  .verify-wrap{
+    min-height:calc(100vh - 80px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .verify-card{
+    width:100%;
+    max-width:560px;
+    background:#fff;
+    border:1px solid #e1dcf9;
+    border-radius:18px;
+    box-shadow:0 16px 40px rgba(18,14,32,.08);
+    padding:28px;
+    text-align:center;
+  }
+  .verify-card h1{margin:0 0 10px 0;color:#2e2840;font-size:1.9rem;}
+  .verify-card p{margin:0 0 12px 0;color:#5e4f79;font-size:1rem;line-height:1.7;}
+  .verify-card strong{color:#22163c;}
+</style>
+
+<div class="verify-wrap">
+  <div class="verify-card">
+    <h1>Check your email</h1>
+    <p>We’ve sent a verification link to <strong>{{ email }}</strong>.</p>
+    <p>Open that link to activate your nomy account before logging in.</p>
+    <p>If it doesn’t arrive soon, check your spam folder first.</p>
+  </div>
+</div>
+{% endblock %}

@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
+from django.core.exceptions import ValidationError
 
 class UserRegisterForm(UserCreationForm):
     email = forms.EmailField(
@@ -68,3 +70,30 @@ class UserRegisterForm(UserCreationForm):
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("This email is already in use.")
         return email
+
+
+class EmailVerificationLoginForm(AuthenticationForm):
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "inactive": "Please verify your email before logging in.",
+    }
+
+    def clean(self):
+        username = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+
+        cleaned_data = super().clean()
+
+        if username and password and self.user_cache is None:
+            try:
+                user = User.objects.get(username__iexact=username)
+            except User.DoesNotExist:
+                user = None
+
+            if user is not None and not user.is_active and user.check_password(password):
+                raise ValidationError(
+                    self.error_messages["inactive"],
+                    code="inactive",
+                )
+
+        return cleaned_data
