@@ -180,7 +180,7 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Text style={styles.kicker}>Profile</Text>
-            <Text style={styles.title}>{sessionUser ? sessionUser.username : 'Your nomy space'}</Text>
+            <Text style={styles.title}>{sessionUser ? 'Profile' : 'Your nomy space'}</Text>
           </View>
 
           <View style={styles.accountCard}>
