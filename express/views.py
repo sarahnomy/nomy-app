@@ -1,6 +1,13 @@
+import json
+import os
+
+import httpx
+from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.utils.text import slugify
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 
 # -------------------------------
@@ -150,3 +157,139 @@ def expressResponse(request):
 
 def createScenarioPage(request):
     return render(request, "express/create-scenario.html")
+
+
+def extract_response_text(payload):
+    output = payload.get("output", [])
+    texts = []
+
+    for item in output:
+        if item.get("type") != "message":
+            continue
+        for content in item.get("content", []):
+            if content.get("type") == "output_text" and content.get("text"):
+                texts.append(content["text"])
+
+    return "\n".join(texts).strip()
+
+
+def build_local_express_response(scenario):
+    lowered = scenario.lower()
+
+    if any(word in lowered for word in ["call", "phone", "text", "message"]):
+        return {
+            "direct": "Text works better for me than calls. Please message me instead.",
+            "relational": "I communicate more clearly by text. I appreciate you using messages with me when you can.",
+        }
+
+    if any(word in lowered for word in ["space", "alone", "quiet", "overstimulated", "overwhelmed"]):
+        return {
+            "direct": "I need some quiet time now. I will come back to this when I can.",
+            "relational": "I care about this, and I need a bit of quiet time before I can respond properly.",
+        }
+
+    if any(word in lowered for word in ["interrupt", "meeting", "group", "speak", "talk"]):
+        return {
+            "direct": "I would like to finish my thought first.",
+            "relational": "I have something I want to add. Can I finish my thought, then I will listen to yours?",
+        }
+
+    if any(word in lowered for word in ["invite", "event", "party", "meet"]):
+        return {
+            "direct": "Thank you for inviting me, but I cannot come this time.",
+            "relational": "I appreciate the invite. I do not have the capacity for this right now, but thank you for thinking of me.",
+        }
+
+    return {
+        "direct": "I need to say this clearly: this does not work for me right now.",
+        "relational": "I want to explain this in a way that is clear and respectful. This does not work for me right now.",
+    }
+
+
+@csrf_exempt
+@require_POST
+def mobile_express_response(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
+
+    scenario = (payload.get("scenario") or "").strip()
+    if not scenario:
+        return JsonResponse({"ok": False, "error": "Please write your scenario first."}, status=400)
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        local_response = build_local_express_response(scenario)
+        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+
+    model = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
+    instructions = (
+        "You help autistic adults express themselves clearly and kindly. "
+        "Given a scenario, return strict JSON with exactly two keys: "
+        '"direct" and "relational". '
+        "Each response should be concise, supportive, and natural. "
+        "Avoid therapy disclaimers, avoid overexplaining, and keep each response under 45 words."
+    )
+
+    try:
+        with httpx.Client(timeout=25.0) as client:
+            response = client.post(
+                "https://api.openai.com/v1/responses",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "instructions": instructions,
+                    "input": f"Scenario: {scenario}\nReturn JSON only.",
+                    "text": {
+                        "format": {
+                            "type": "json_schema",
+                            "name": "express_responses",
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "direct": {"type": "string"},
+                                    "relational": {"type": "string"},
+                                },
+                                "required": ["direct", "relational"],
+                            },
+                        }
+                    },
+                },
+            )
+    except httpx.HTTPError:
+        local_response = build_local_express_response(scenario)
+        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+
+    if response.status_code >= 400:
+        local_response = build_local_express_response(scenario)
+        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+
+    data = response.json()
+    raw_text = extract_response_text(data)
+
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError:
+        local_response = build_local_express_response(scenario)
+        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+
+    direct = (parsed.get("direct") or "").strip()
+    relational = (parsed.get("relational") or "").strip()
+
+    if not direct or not relational:
+        local_response = build_local_express_response(scenario)
+        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "prompt": scenario,
+            "direct": direct,
+            "relational": relational,
+        }
+    )

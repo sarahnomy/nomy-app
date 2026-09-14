@@ -1,65 +1,28 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Image } from 'expo-image';
-import { router, Tabs } from 'expo-router';
+import { Tabs, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HapticTab } from '@/components/haptic-tab';
 import { Text } from '@/components/nomy-type';
+import { loadOnboardingState, setDemoSeenValue, setIntroSeenValue } from '@/constants/onboarding';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-
-const INTRO_STORAGE_KEY = 'nomy_intro_seen';
-const DEMO_STORAGE_KEY = 'nomy_demo_seen';
-
-async function getIntroSeen() {
-  try {
-    return (await AsyncStorage.getItem(INTRO_STORAGE_KEY)) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-async function setIntroSeenValue() {
-  try {
-    await AsyncStorage.setItem(INTRO_STORAGE_KEY, 'true');
-  } catch {
-    // Expo Go can lack this native module in some clients. The app should still continue.
-  }
-}
-
-async function getDemoSeen() {
-  try {
-    return (await AsyncStorage.getItem(DEMO_STORAGE_KEY)) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-async function setDemoSeenValue() {
-  try {
-    await AsyncStorage.setItem(DEMO_STORAGE_KEY, 'true');
-  } catch {
-    // Demo should never block the app if storage is unavailable.
-  }
-}
 
 const introSlides = [
   {
     body: [
-      'You’ve just entered a space built differently on purpose.',
-      'A space that understands the quiet exhaustion of always trying to fit into systems that weren’t made with your mind in mind.',
-      'Here, you don’t have to mask, explain or perform.',
-      'You get to simply be and explore who that really is.',
+      'This is a space for late-diagnosed autistic adults.',
+      "We know how exhausting it can be to constantly adapt to a world that wasn't build with us in mind.",
+      "Here. you don't have to mask, explain yourself or perform.",
+      'You can simply be yourself and explore who you are.',
     ],
   },
   {
-    body: ['nomy is here to help you reconnect with yourself and meet yourself with understanding, maybe for the first time.'],
+    body: ['nomy is here to help you reconnect with yourself and understand your experiences, maybe for the first\u00a0time.'],
     features: [
-      ['Emotionize', 'understand your feelings.'],
-      ['Express', 'create, reflect, and release.'],
+      ['Emotionize', "Understand what you're feeling"],
       ['Check-in', 'set gentle goals for your day.'],
-      ['Toolkit', 'find calm when things feel too much.'],
+      ['Express', 'Find words that feel authentic to you.'],
+      ['Toolkit', 'Practical support when you need it'],
     ],
   },
   {
@@ -67,33 +30,281 @@ const introSlides = [
   },
 ];
 
-const demoSlides = [
-  {
-    title: 'Adaptive Avatar',
-    text: 'Tap Home whenever you want to return to your check-in and adaptive avatar.',
-    target: 'avatar',
-  },
+const introFeatureActions = [
   {
     title: 'Emotionize',
-    text: 'Emotion Mapping helps you explore feelings, unlock emotional language, and read story prompts.',
-    target: 'emotionize',
+    description: "Understand what you're feeling",
+    color: '#f4f8f3',
   },
   {
     title: 'Check-in',
-    text: 'Daily Check-ins give you a gentle place for morning, evening, and reflection prompts.',
-    target: 'dailies',
+    description: 'set gentle goals for your day.',
+    color: '#fffaeb',
   },
   {
     title: 'Express',
-    text: 'Self-Expression in Express helps you find words, write things out, and release a thought safely.',
-    target: 'express',
+    description: 'Find words that feel authentic to you.',
+    color: '#e9f0fa',
   },
   {
     title: 'Toolkit',
-    text: 'Tap Toolkit for breathing, focus, and grounding tools when things feel too much.',
-    target: 'toolkit',
+    description: 'Practical support when you need it',
+    color: '#fde6cf',
   },
 ] as const;
+
+const demoSlides = [
+  {
+    title: 'Home',
+    text: 'Home lets you pick up where you left off, or use a quick start when you know what would help.',
+    target: 'home',
+  },
+  {
+    title: 'Support',
+    text: "Explore all of nomy's tools, including Emotionize, Express, Check-in and Toolkit.",
+    target: 'support',
+  },
+  {
+    title: 'Profile',
+    text: 'Profile is where login, saved reflections, monthly recaps, and personal stats live.',
+    target: 'profile',
+  },
+] as const;
+
+const demoSuggestedCards = [
+  { title: 'Emotionize', label: "Understand what you're feeling", color: '#f4f8f3' },
+  { title: 'Check-in', label: 'Use morning or evening prompts', color: '#fffaeb' },
+  { title: 'Express', label: 'Find words that feel authentic', color: '#e9f0fa' },
+  { title: 'Toolkit', label: 'Practical support when you need it', color: '#fde6cf' },
+] as const;
+
+const demoHomeEssentials = [
+  { title: 'Calm my body', label: 'Breathing', color: '#fde6cf' },
+  { title: 'Find words', label: 'Express', color: '#e9f0fa' },
+  { title: 'Evening reflection', label: 'Check-in', color: '#fffaeb' },
+] as const;
+
+const featureTabColors = {
+  home: '#fbf9ff',
+  support: '#fbf9ff',
+  profile: '#fbf9ff',
+} as const;
+
+const tabMeta = {
+  index: { label: 'Home', color: featureTabColors.home },
+  support: { label: 'Support', color: featureTabColors.support },
+  profile: { label: 'Profile', color: featureTabColors.profile },
+} as const;
+
+type TabRouteName = keyof typeof tabMeta;
+
+function isTabRouteName(name: string): name is TabRouteName {
+  return name in tabMeta;
+}
+
+function primaryTabForRoute(name: string | undefined): TabRouteName {
+  if (name === 'profile') {
+    return 'profile';
+  }
+
+  if (name === 'index') {
+    return 'index';
+  }
+
+  return 'support';
+}
+
+function TabIcon({ color, focused, name }: { color: string; focused: boolean; name: TabRouteName }) {
+  const iconColor = focused ? '#1f1635' : color;
+
+  if (name === 'index') {
+    return <IconSymbol size={24} name="house.fill" color={iconColor} />;
+  }
+
+  if (name === 'support') {
+    return <IconSymbol size={23} name="heart.fill" color={iconColor} />;
+  }
+
+  return <IconSymbol size={23} name="person.crop.circle.fill" color={iconColor} />;
+}
+
+type NomyTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
+
+function NomyTabBar({ descriptors, navigation, state }: NomyTabBarProps) {
+  const [barWidth, setBarWidth] = useState(0);
+  const [bubbleX] = useState(() => new Animated.Value(0));
+  const routes = state.routes.filter((route) => isTabRouteName(route.name));
+  const activeRoute = state.routes[state.index];
+  const activeName = primaryTabForRoute(activeRoute?.name);
+  const activeVisibleIndex = Math.max(0, routes.findIndex((route) => route.name === activeName));
+  const tabWidth = barWidth > 0 ? (barWidth - 16) / routes.length : 0;
+
+  useEffect(() => {
+    if (!tabWidth) {
+      return;
+    }
+
+    Animated.spring(bubbleX, {
+      toValue: activeVisibleIndex * tabWidth,
+      tension: 95,
+      friction: 14,
+      useNativeDriver: true,
+    }).start();
+  }, [activeVisibleIndex, bubbleX, tabWidth]);
+
+  return (
+    <View
+      onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+      style={styles.customTabBar}>
+      {tabWidth ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.movingTabBubble,
+            {
+              width: tabWidth + 8,
+              backgroundColor: tabMeta[activeName].color,
+              transform: [{ translateX: Animated.add(bubbleX, -4) }],
+            },
+          ]}
+        />
+      ) : null}
+
+      {routes.map((route) => {
+        const routeName = route.name as TabRouteName;
+        const options = descriptors[route.key]?.options;
+        const focused = activeName === routeName;
+        const label = tabMeta[routeName].label;
+
+        function onPress() {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!focused && !event.defaultPrevented) {
+            navigation.navigate(route.name, route.params);
+          }
+        }
+
+        function onLongPress() {
+          navigation.emit({
+            type: 'tabLongPress',
+            target: route.key,
+          });
+        }
+
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+            accessibilityLabel={options?.tabBarAccessibilityLabel}
+            key={route.key}
+            onLongPress={onLongPress}
+            onPress={onPress}
+            style={styles.customTabItem}>
+            <View style={styles.customTabIcon}>
+              <TabIcon color={focused ? '#1f1635' : '#6f6285'} focused={focused} name={routeName} />
+            </View>
+            <Text style={[styles.customTabLabel, focused && styles.customTabLabelFocused]} numberOfLines={1}>
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function DemoPagePreview({ target }: { target: (typeof demoSlides)[number]['target'] }) {
+  if (target === 'support') {
+    return (
+      <View style={[styles.demoPreview, styles.demoSupportPreview]}>
+        <View style={styles.demoPageHeader}>
+          <Text style={styles.demoPreviewKicker}>Support</Text>
+        </View>
+        <Text style={styles.demoPreviewTitle}>What kind of support do you want?</Text>
+        <View style={styles.demoPreviewList}>
+          {demoSuggestedCards.map((item) => (
+            <View key={item.title} style={[styles.demoPreviewRow, { backgroundColor: item.color }]}>
+              <View style={styles.demoPreviewCopy}>
+                <Text style={styles.demoPreviewRowTitle}>{item.title}</Text>
+                <Text style={styles.demoPreviewRowText}>{item.label}</Text>
+              </View>
+              <Text style={styles.demoPreviewChevron}>›</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  if (target === 'profile') {
+    return (
+      <View style={[styles.demoPreview, styles.demoProfilePreview]}>
+        <View style={styles.demoPageHeader}>
+          <Text style={styles.demoPreviewKicker}>Profile</Text>
+        </View>
+        <Text style={styles.demoPreviewTitle}>Profile</Text>
+        <View style={styles.demoAccountCard}>
+          <Text style={styles.demoPreviewRowTitle}>Account</Text>
+          <Text style={styles.demoPreviewRowText}>Save reflections and see patterns</Text>
+          <View style={styles.demoAuthButton}>
+            <Text style={styles.demoAuthButtonText}>Log in or create account</Text>
+          </View>
+        </View>
+        <View style={styles.demoStatsRow}>
+          <View style={styles.demoStatCard}>
+            <Text style={styles.demoStatNumber}>12</Text>
+            <Text style={styles.demoStatLabel}>saved</Text>
+          </View>
+          <View style={styles.demoStatCard}>
+            <Text style={styles.demoStatNumber}>4</Text>
+            <Text style={styles.demoStatLabel}>tools</Text>
+          </View>
+        </View>
+        <View style={styles.demoProfileRow}>
+          <View style={styles.demoPreviewCopy}>
+            <Text style={styles.demoPreviewRowTitle}>Monthly recap</Text>
+            <Text style={styles.demoPreviewRowText}>Patterns and stats</Text>
+          </View>
+          <Text style={styles.demoPreviewChevron}>›</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.demoPreview, styles.demoHomePreview]}>
+      <View style={styles.demoPageHeader}>
+        <Text style={styles.demoPreviewKicker}>Home</Text>
+      </View>
+      <Text style={styles.demoPreviewTitle}>What would help next?</Text>
+      <View style={styles.demoContinueCard}>
+        <Text style={styles.demoPreviewRowText}>Continue</Text>
+        <Text style={styles.demoPreviewRowTitle}>Continue Express</Text>
+        <Text style={styles.demoMiniBody}>Pick up where you left off.</Text>
+      </View>
+      <Text style={styles.demoSectionLabel}>Your essentials</Text>
+      <View style={styles.demoEssentialsGrid}>
+        {demoHomeEssentials.map((item) => (
+          <View key={item.title} style={[styles.demoEssentialCard, { backgroundColor: item.color }]}>
+            <Text style={styles.demoEssentialText}>{item.title}</Text>
+            <Text style={styles.demoEssentialMeta}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.demoProfileRow}>
+        <View style={styles.demoPreviewCopy}>
+          <Text style={styles.demoPreviewRowTitle}>Often helpful</Text>
+          <Text style={styles.demoPreviewRowText}>Try one breathing round</Text>
+        </View>
+        <Text style={styles.demoPreviewChevron}>›</Text>
+      </View>
+    </View>
+  );
+}
 
 function FirstRunIntro({ onComplete }: { onComplete: () => void }) {
   const [index, setIndex] = useState(0);
@@ -110,33 +321,13 @@ function FirstRunIntro({ onComplete }: { onComplete: () => void }) {
     onComplete();
   }
 
-  async function enterAuth(path: '/login' | '/register') {
-    await setIntroSeenValue();
-    onComplete();
-    router.push(path);
-  }
-
   function previous() {
     setIndex((current) => Math.max(0, current - 1));
   }
 
   return (
     <SafeAreaView style={styles.introScreen}>
-      <View style={styles.progressRow}>
-        {introSlides.map((_, slideIndex) => (
-          <View key={slideIndex} style={styles.progressBar}>
-            <View style={[styles.progressFill, slideIndex <= index && styles.progressFillActive]} />
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.logoWrap}>
-        <Image
-          source={require('@/assets/images/nomy-logo-new.png')}
-          style={styles.logo}
-          contentFit="contain"
-        />
-      </View>
+      <Text style={styles.introWordmark}>nomy</Text>
 
       <View style={styles.introCard}>
         {slide.body.map((line) => (
@@ -146,13 +337,13 @@ function FirstRunIntro({ onComplete }: { onComplete: () => void }) {
         ))}
 
         {slide.features ? (
-          <View style={styles.features}>
-            {slide.features.map(([label, text], featureIndex) => (
-              <View key={label} style={styles.featureRow}>
-                <View style={[styles.featurePill, styles[`featurePill${featureIndex}`]]}>
-                  <Text style={styles.featurePillText}>{label}</Text>
+          <View style={styles.introFeatureGrid}>
+            {introFeatureActions.map((item) => (
+              <View key={item.title} style={[styles.introFeatureButton, { backgroundColor: item.color }]}>
+                <View style={styles.introFeatureCopy}>
+                  <Text style={styles.introFeatureTitle}>{item.title}</Text>
+                  <Text style={styles.introFeatureDescription}>{item.description}</Text>
                 </View>
-                <Text style={styles.featureText}>{text}</Text>
               </View>
             ))}
           </View>
@@ -160,27 +351,17 @@ function FirstRunIntro({ onComplete }: { onComplete: () => void }) {
       </View>
 
       <View style={styles.introActions}>
-        <Pressable onPress={previous} disabled={index === 0} style={styles.secondaryButton}>
-          <Text style={[styles.secondaryButtonText, index === 0 && styles.disabledText]}>
-            Previous
-          </Text>
-        </Pressable>
-        <Pressable onPress={next} style={styles.primaryButton}>
+        {index > 0 ? (
+          <Pressable onPress={previous} style={[styles.introNavButton, styles.secondaryButton]}>
+            <Text style={styles.secondaryButtonText}>Back</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={next} style={[styles.introNavButton, styles.primaryButton]}>
           <Text style={styles.primaryButtonText}>
-            {isLast ? 'Tap to enter nomy' : 'Tap anywhere → to continue'}
+            {isLast ? 'Enter nomy' : 'Continue'}
           </Text>
         </Pressable>
       </View>
-      {isLast ? (
-        <View style={styles.authActions}>
-          <Pressable onPress={() => enterAuth('/register')} style={styles.authButton}>
-            <Text style={styles.authButtonText}>Create account</Text>
-          </Pressable>
-          <Pressable onPress={() => enterAuth('/login')} style={styles.authButton}>
-            <Text style={styles.authButtonText}>Log in</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -221,25 +402,9 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
       <View style={styles.coachMock}>
         <View style={styles.coachHeader}>
           <View style={styles.coachLogo} />
-          <View style={styles.coachAvatar} />
         </View>
 
-        <View style={[styles.coachCheckIn, slide.target === 'avatar' && styles.coachHighlight]}>
-          <Text style={styles.coachKicker}>Adaptive Avatar</Text>
-          <Text style={styles.coachMockTitle}>How are you arriving?</Text>
-          <View style={styles.coachMoodRow}>
-            <View style={styles.coachMood} />
-            <View style={styles.coachMood} />
-          </View>
-        </View>
-
-        <View style={styles.coachContentFill}>
-          <View style={styles.coachLine} />
-          <View style={styles.coachLineShort} />
-          <View style={styles.coachPreviewCard} />
-        </View>
-
-        <View style={styles.coachDim} pointerEvents="none" />
+        <DemoPagePreview target={slide.target} />
 
         <View style={styles.coachSpeechBubble}>
           <Text style={styles.demoTitle}>{slide.title}</Text>
@@ -249,8 +414,8 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
         </View>
 
         <View style={styles.coachTabBar}>
-          {['Home', 'Emotionize', 'Check-in', 'Express', 'Toolkit'].map((label) => {
-            const target = label === 'Home' ? 'avatar' : label === 'Check-in' ? 'dailies' : label.toLowerCase();
+          {['Home', 'Support', 'Profile'].map((label) => {
+            const target = label.toLowerCase();
             const active = slide.target === target;
             return (
               <View
@@ -265,7 +430,6 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
                     <Text style={styles.coachTapBadgeText}>Tap</Text>
                   </View>
                 ) : null}
-                <View style={[styles.coachTabIcon, active && styles.coachTabIconActive]} />
                 <Text style={[styles.coachTabText, active && styles.coachTabTextActive]}>
                   {label}
                 </Text>
@@ -276,73 +440,104 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
       </View>
 
       <View style={styles.introActions}>
-        <Pressable onPress={previous} disabled={index === 0} style={styles.secondaryButton}>
-          <Text style={[styles.secondaryButtonText, index === 0 && styles.disabledText]}>
-            Previous
-          </Text>
-        </Pressable>
-        <Pressable onPress={next} style={styles.primaryButton}>
+        {index > 0 ? (
+          <Pressable onPress={previous} style={[styles.introNavButton, styles.secondaryButton]}>
+            <Text style={styles.secondaryButtonText}>Previous</Text>
+          </Pressable>
+        ) : (
+          <Pressable onPress={finishDemo} style={[styles.introNavButton, styles.secondaryButton]}>
+            <Text style={styles.secondaryButtonText}>Skip demo</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={next} style={[styles.introNavButton, styles.primaryButton]}>
           <Text style={styles.primaryButtonText}>
             {isLast ? 'Start using nomy' : 'Next'}
           </Text>
         </Pressable>
       </View>
-
-      <Pressable onPress={finishDemo} style={styles.skipDemoButton}>
-        <Text style={styles.skipDemoText}>Skip demo</Text>
-      </Pressable>
     </SafeAreaView>
   );
 }
 
 export default function TabLayout() {
+  const segments = useSegments();
   const [introSeen, setIntroSeen] = useState<boolean | null>(null);
   const [demoSeen, setDemoSeen] = useState<boolean | null>(null);
 
   useEffect(() => {
-    getIntroSeen().then(setIntroSeen);
-    getDemoSeen().then(setDemoSeen);
+    let active = true;
+
+    async function loadState() {
+      const nextState = await loadOnboardingState();
+      if (active) {
+        setIntroSeen(nextState.introSeen);
+        setDemoSeen(nextState.demoSeen);
+      }
+    }
+
+    void loadState();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const activeColor = '#1f003d';
   const inactiveColor = '#6f6285';
+  const currentTab = String(segments[segments.length - 1] ?? '');
+  const shouldShowOnboarding = !currentTab || currentTab === '(tabs)' || currentTab === 'index';
 
-  if (introSeen === null || demoSeen === null) {
+  if (shouldShowOnboarding && (introSeen === null || demoSeen === null)) {
     return <View style={styles.loadingScreen} />;
   }
 
-  if (!introSeen) {
+  if (shouldShowOnboarding && !introSeen) {
     return <FirstRunIntro onComplete={() => setIntroSeen(true)} />;
   }
 
-  if (!demoSeen) {
+  if (shouldShowOnboarding && !demoSeen) {
     return <FirstRunDemo onComplete={() => setDemoSeen(true)} />;
   }
 
   return (
     <Tabs
+      tabBar={(props) => <NomyTabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
         headerShown: true,
-        tabBarButton: HapticTab,
         tabBarShowLabel: true,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopColor: '#d8d0e8',
-          minHeight: 86,
-          paddingTop: 10,
-          paddingBottom: 12,
+          position: 'absolute',
+          left: 14,
+          right: 14,
+          bottom: 12,
+          minHeight: 76,
+          paddingTop: 7,
+          paddingBottom: 8,
+          borderTopWidth: 0,
+          borderRadius: 26,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: 'rgba(216, 208, 232, 0.9)',
+          backgroundColor: 'rgba(255, 255, 255, 0.92)',
+          shadowColor: '#1f003d',
+          shadowOpacity: 0.12,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '700',
-          fontFamily: 'DMSans_700Bold',
+          fontWeight: '600',
           lineHeight: 14,
+          marginTop: 4,
+          textAlign: 'center',
         },
         tabBarItemStyle: {
-          minHeight: 62,
-          paddingVertical: 4,
+          minHeight: 56,
+          paddingVertical: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
         },
       }}>
       <Tabs.Screen
@@ -351,63 +546,58 @@ export default function TabLayout() {
           title: 'Home',
           headerTitle: '',
           headerTransparent: true,
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <IconSymbol size={24} name="house.fill" color={focused ? '#ffffff' : color} />
-            </View>
-          ),
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          title: 'Support',
+          headerTitle: '',
+          headerTransparent: true,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          headerTitle: '',
+          headerTransparent: true,
         }}
       />
       <Tabs.Screen
         name="emotionize"
         options={{
+          href: null,
           title: 'Emotionize',
           headerTitle: '',
           headerTransparent: true,
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <IconSymbol size={23} name="heart.fill" color={focused ? '#ffffff' : color} />
-            </View>
-          ),
         }}
       />
       <Tabs.Screen
         name="dailies"
         options={{
+          href: null,
           title: 'Check-in',
           headerTitle: '',
           headerTransparent: true,
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <IconSymbol size={23} name="calendar" color={focused ? '#ffffff' : color} />
-            </View>
-          ),
         }}
       />
       <Tabs.Screen
         name="express"
         options={{
+          href: null,
           title: 'Express',
           headerTitle: '',
           headerTransparent: true,
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <IconSymbol size={23} name="bubble.left.fill" color={focused ? '#ffffff' : color} />
-            </View>
-          ),
         }}
       />
       <Tabs.Screen
         name="toolkit"
         options={{
+          href: null,
           title: 'Toolkit',
           headerTitle: '',
           headerTransparent: true,
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
-              <IconSymbol size={23} name="wrench.and.screwdriver.fill" color={focused ? '#ffffff' : color} />
-            </View>
-          ),
         }}
       />
       <Tabs.Screen
@@ -421,45 +611,58 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, backgroundColor: '#f1ecff' },
+  loadingScreen: { flex: 1, backgroundColor: '#fffaf2' },
   introScreen: {
     flex: 1,
-    backgroundColor: '#eee9ff',
+    backgroundColor: '#fffaf2',
     paddingHorizontal: 20,
     paddingBottom: 22,
     gap: 18,
   },
   demoScreen: {
     flex: 1,
-    backgroundColor: '#fbf9ff',
+    backgroundColor: '#fffaf2',
     paddingHorizontal: 20,
     paddingBottom: 22,
     gap: 18,
   },
   progressRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
-  progressBar: { flex: 1, height: 6, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.55)' },
+  progressBar: { flex: 1, height: 5, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e4deef' },
   demoProgressBar: { flex: 1, height: 6, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e4deef' },
   progressFill: { height: '100%', width: '0%', backgroundColor: '#1f003d' },
   progressFillActive: { width: '100%' },
-  logoWrap: { alignItems: 'center', paddingTop: 6 },
-  logo: { width: 190, height: 132 },
   introCard: {
     flex: 1,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.38)',
-    padding: 24,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingVertical: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
+    gap: 16,
+    shadowColor: '#110c28',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
   },
-  introText: { color: '#1f003d', textAlign: 'center', fontSize: 18, lineHeight: 27 },
+  introWordmark: {
+    color: '#1f1635',
+    textAlign: 'center',
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  introText: { color: '#1f1635', textAlign: 'center', fontSize: 18, lineHeight: 27, fontWeight: '500', maxWidth: 300 },
   coachMock: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 34,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#ded7ec',
-    padding: 14,
+    padding: 12,
     gap: 12,
     overflow: 'hidden',
   },
@@ -469,71 +672,165 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   coachLogo: {
-    width: 92,
-    height: 28,
-    borderRadius: 8,
+    width: 74,
+    height: 7,
+    borderRadius: 999,
     backgroundColor: '#d8d0e8',
+    alignSelf: 'center',
   },
-  coachAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
-    backgroundColor: '#eee9ff',
-  },
-  coachCheckIn: {
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: '#f6f2ff',
-    padding: 14,
-    gap: 8,
-    zIndex: 0,
-  },
-  coachKicker: { color: '#5e4f79', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  coachMockTitle: { color: '#1f003d', fontSize: 20, fontWeight: '800' },
-  coachMoodRow: { flexDirection: 'row', gap: 8 },
-  coachMood: { flex: 1, height: 42, borderRadius: 8, backgroundColor: '#ffffff' },
-  coachContentFill: {
+  demoPreview: {
     flex: 1,
-    borderRadius: 8,
-    backgroundColor: '#f7f4fc',
+    borderRadius: 26,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#eee7f7',
-    padding: 12,
-    gap: 10,
+    padding: 13,
+    gap: 8,
+    overflow: 'hidden',
+  },
+  demoHomePreview: { backgroundColor: '#f8f5e7' },
+  demoSupportPreview: { backgroundColor: '#fffaf2' },
+  demoProfilePreview: { backgroundColor: '#e9f0fa' },
+  demoPageHeader: { alignItems: 'center', paddingTop: 1 },
+  demoPreviewKicker: {
+    color: '#7a708c',
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
+    textAlign: 'center',
+  },
+  demoPreviewTitle: {
+    color: '#1f1635',
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '900',
+    letterSpacing: -0.25,
+  },
+  demoPreviewList: { flex: 1, gap: 7, justifyContent: 'center' },
+  demoPreviewRow: {
+    minHeight: 44,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+  },
+  demoPreviewCopy: { flex: 1, gap: 1 },
+  demoPreviewRowTitle: { color: '#1f1635', fontSize: 11, lineHeight: 14, fontWeight: '800' },
+  demoPreviewRowText: {
+    color: '#6f6285',
+    fontSize: 8.5,
+    lineHeight: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.25,
+  },
+  demoPreviewChevron: { color: '#7a708c', fontSize: 18, lineHeight: 18, fontWeight: '500' },
+  demoContinueCard: {
+    minHeight: 62,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+    padding: 10,
+    gap: 3,
     justifyContent: 'center',
   },
-  coachLine: {
-    width: '74%',
-    height: 12,
-    borderRadius: 8,
-    backgroundColor: '#ded7ec',
+  demoMiniBody: { color: '#817690', fontSize: 9, lineHeight: 12, fontWeight: '600' },
+  demoSectionLabel: {
+    color: '#6f6285',
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
+    marginTop: 1,
   },
-  coachLineShort: {
-    width: '52%',
-    height: 12,
-    borderRadius: 8,
-    backgroundColor: '#e9e2f2',
-  },
-  coachPreviewCard: {
-    height: 72,
-    borderRadius: 8,
+  demoEssentialsGrid: { flexDirection: 'row', gap: 6 },
+  demoEssentialCard: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 18,
+    padding: 7,
     borderWidth: 1,
-    borderColor: '#ded7ec',
-    backgroundColor: '#eee9ff',
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+    justifyContent: 'space-between',
+  },
+  demoEssentialText: {
+    color: '#1f1635',
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  demoEssentialMeta: {
+    color: '#5e4f79',
+    fontSize: 7,
+    lineHeight: 9,
+    fontWeight: '700',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  demoAccountCard: {
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+    padding: 10,
+    gap: 8,
+  },
+  demoAuthButton: {
+    minHeight: 34,
+    borderRadius: 17,
+    backgroundColor: '#1f003d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  demoAuthButtonText: { color: '#ffffff', fontSize: 9, lineHeight: 11, fontWeight: '900' },
+  demoStatsRow: { flexDirection: 'row', gap: 7 },
+  demoStatCard: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 17,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  demoStatNumber: { color: '#1f1635', fontSize: 17, lineHeight: 20, fontWeight: '900' },
+  demoStatLabel: { color: '#6f6285', fontSize: 8, lineHeight: 10, fontWeight: '800', textTransform: 'uppercase' },
+  demoProfileRow: {
+    minHeight: 42,
+    borderRadius: 17,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   coachSpeechBubble: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 104,
-    borderRadius: 8,
+    left: 18,
+    right: 18,
+    bottom: 98,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: '#ded7ec',
     backgroundColor: '#ffffff',
-    padding: 18,
+    padding: 16,
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     zIndex: 4,
     shadowColor: '#1f003d',
     shadowOpacity: 0.24,
@@ -556,18 +853,18 @@ const styles = StyleSheet.create({
   coachTabBar: {
     minHeight: 76,
     flexDirection: 'row',
-    borderRadius: 8,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: '#ded7ec',
     backgroundColor: '#ffffff',
-    padding: 5,
+    padding: 8,
     gap: 4,
     zIndex: 3,
   },
   coachTab: {
     flex: 1,
-    borderRadius: 8,
-    borderWidth: 2,
+    borderRadius: 22,
+    borderWidth: 1,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
@@ -577,7 +874,7 @@ const styles = StyleSheet.create({
   },
   coachTabHighlight: {
     borderColor: '#1f003d',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fffaf2',
     shadowColor: '#ffffff',
     shadowOpacity: 0.95,
     shadowRadius: 18,
@@ -588,9 +885,9 @@ const styles = StyleSheet.create({
     opacity: 0.42,
   },
   coachTapBadge: {
-    minWidth: 34,
-    minHeight: 20,
-    borderRadius: 8,
+    minWidth: 30,
+    minHeight: 18,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1f003d',
@@ -598,21 +895,12 @@ const styles = StyleSheet.create({
   },
   coachTapBadgeText: {
     color: '#ffffff',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
-  },
-  coachTabIcon: {
-    width: 24,
-    height: 18,
-    borderRadius: 8,
-    backgroundColor: '#d8d0e8',
-  },
-  coachTabIconActive: {
-    backgroundColor: '#1f003d',
   },
   coachTabText: {
     color: '#6f6285',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -629,43 +917,106 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   coachDim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(31,0,61,0.58)',
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(31,0,61,0.16)',
     borderRadius: 8,
     zIndex: 2,
   },
-  demoTitle: { color: '#1f003d', textAlign: 'center', fontSize: 25, lineHeight: 30, fontWeight: '800' },
-  demoText: { color: '#4b3970', textAlign: 'center', fontSize: 16, lineHeight: 23 },
-  demoCount: { color: '#6f6285', textAlign: 'center', fontSize: 13, fontWeight: '700' },
-  features: { width: '100%', gap: 10, paddingTop: 10 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  featurePill: { width: 124, minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  featurePill0: { backgroundColor: '#e9c3f1' },
-  featurePill1: { backgroundColor: '#e1dcf9' },
-  featurePill2: { backgroundColor: '#f1f1ff' },
-  featurePill3: { backgroundColor: '#fff5e9' },
-  featurePillText: { color: '#1f003d', fontSize: 15, fontWeight: '600' },
-  featureText: { flex: 1, color: '#1f003d', fontSize: 15, lineHeight: 21, fontStyle: 'italic' },
-  introActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  authActions: { flexDirection: 'row', gap: 10 },
-  authButton: { flex: 1, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: '#1f003d', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.35)' },
-  authButtonText: { color: '#1f003d', fontSize: 15, fontWeight: '800' },
-  skipDemoButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
-  skipDemoText: { color: '#4b3970', fontSize: 16, fontWeight: '700' },
-  secondaryButton: { minHeight: 52, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  secondaryButtonText: { color: '#4b3970', fontSize: 16, fontWeight: '600' },
-  disabledText: { opacity: 0.35 },
-  primaryButton: { flex: 1, minHeight: 52, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1f003d', paddingHorizontal: 16 },
-  primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  tabIconWrap: {
-    width: 34,
-    height: 30,
-    borderRadius: 8,
+  demoTitle: { color: '#1f003d', textAlign: 'center', fontSize: 22, lineHeight: 27, fontWeight: '800' },
+  demoText: { color: '#4b3970', textAlign: 'center', fontSize: 15, lineHeight: 21 },
+  demoCount: { color: '#6f6285', textAlign: 'center', fontSize: 12, fontWeight: '700' },
+  introFeatureGrid: { width: '100%', gap: 8, paddingTop: 8 },
+  introFeatureButton: {
+    minHeight: 58,
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  introFeatureCopy: { flex: 1, gap: 1 },
+  introFeatureTitle: { color: '#1f003d', fontSize: 15, fontWeight: '800' },
+  introFeatureDescription: { color: '#5e4f79', fontSize: 12, fontWeight: '600' },
+  introActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  introNavButton: { flex: 1, flexBasis: 0, minWidth: 0, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', borderWidth: 1, paddingHorizontal: 18 },
+  secondaryButton: { borderColor: '#d8d0e8', backgroundColor: '#ffffff' },
+  secondaryButtonText: { color: '#5f5277', fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  disabledText: { opacity: 0 },
+  primaryButton: { borderColor: '#1f003d', backgroundColor: '#1f003d' },
+  primaryButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  customTabBar: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 12,
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    padding: 8,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(216, 208, 232, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.74)',
+    shadowColor: '#1f003d',
+    shadowOpacity: 0.09,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  movingTabBubble: {
+    position: 'absolute',
+    left: 8,
+    top: 7,
+    bottom: 7,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+    shadowColor: '#1f003d',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  customTabItem: {
+    flex: 1,
+    zIndex: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f1eef8',
+    gap: 3,
+    minWidth: 0,
   },
-  tabIconWrapActive: {
-    backgroundColor: '#1f003d',
+  customTabIcon: {
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customTabLabel: {
+    color: '#6f6285',
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  customTabLabelFocused: {
+    color: '#1f1635',
+    fontWeight: '900',
+  },
+  tabIconWrap: {
+    width: 36,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ translateY: -1 }],
+  },
+  tabIconWrapFocused: {
+    width: 54,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.12)',
+    shadowColor: '#1f003d',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
 });

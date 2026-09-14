@@ -1,79 +1,190 @@
-import { Link } from 'expo-router';
-import { useMemo } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { recordAvatarActivity } from '@/constants/avatar';
 
 const menu = [
-  { title: 'Morning', href: '/dailies-morning', color: '#e1dcf9' },
-  { title: 'Evening', href: '/dailies-evening', color: '#564d74', dark: true },
-  { title: 'Reflections', href: '/dailies-reflections', color: '#f1f1ff' },
-  { title: 'Weekly Overview', href: '/dailies-reflections', color: '#f4f5f7' },
+  { name: 'Morning', meta: 'Check how you are doing today', href: '/dailies-morning' },
+  { name: 'Evening', meta: 'Remember something from today', href: '/dailies-evening' },
+  { name: 'Reflections', meta: 'Saved entries in Profile', href: '/profile' },
+  { name: 'Weekly Overview', meta: 'Monthly recaps in Profile', href: '/profile' },
 ] as const;
 
 export default function DailiesScreen() {
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    return hour >= 4 && hour < 14
-      ? 'Good Morning'
-      : "You've reached the quiet end of the day. Would you like to reflect on how things went?";
+  const [eveningPromptVisible, setEveningPromptVisible] = useState(false);
+
+  useEffect(() => {
+    void recordAvatarActivity({ type: 'feature_opened', feature: 'dailies' });
   }, []);
+
+  function openCheckIn(href: (typeof menu)[number]['href']) {
+    if (href === '/dailies-evening') {
+      setEveningPromptVisible(true);
+      return;
+    }
+
+    router.push(href);
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Link href="/" asChild>
-          <Pressable style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Main Menu</Text>
-          </Pressable>
-        </Link>
-
-        <View style={styles.header}>
-          <Text style={styles.title}>Daily Check-ins</Text>
-          <Text style={styles.subtitle}>{greeting}</Text>
+        <BackControl label="Support" onPress={() => router.replace('/support')} />
+        <View style={styles.waveWrap}>
+          <View style={styles.wave}>
+            <View style={styles.header}>
+              <Text style={styles.stepLabel}>Check-in</Text>
+              <Text style={styles.title}>Which part of your day would you like to support?</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.menu}>
+        <View style={styles.grid}>
           {menu.map((item) => (
-            <Link key={item.title} href={item.href} asChild>
-              <Pressable style={[styles.oval, { backgroundColor: item.color }]}>
-                <Text style={[styles.ovalText, item.dark && styles.ovalTextLight]}>{item.title}</Text>
-              </Pressable>
-            </Link>
+            <Pressable
+              key={item.name}
+              onPress={() => openCheckIn(item.href)}
+              style={({ pressed }) => [styles.categoryButton, pressed && styles.rowPressed]}>
+              <View style={styles.categoryCopy}>
+                <Text style={styles.categoryText}>{item.name}</Text>
+                <Text style={styles.categoryMeta}>{item.meta}</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
           ))}
         </View>
+        </ScrollView>
 
-        <View style={styles.about}>
-          <Text style={styles.aboutTitle}>About Check-in</Text>
-          <Text style={styles.aboutText}>
-            Each morning, you’ll be invited to write a short affirmation — something that grounds or encourages you.
-          </Text>
-          <Text style={styles.aboutText}>
-            Then, you can set one main goal for the day and list any tasks or checklists that help you move toward it.
-          </Text>
-          <Text style={styles.aboutText}>
-            In the evening, Check-in will gently help you reflect on how the day felt.
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        {eveningPromptVisible ? (
+          <View pointerEvents="box-none" style={styles.promptOverlay}>
+            <Pressable style={styles.promptScrim} onPress={() => setEveningPromptVisible(false)} />
+            <View style={styles.promptSheet}>
+              <Text style={styles.promptTitle}>It might not be evening yet</Text>
+              <Text style={styles.promptText}>
+                Evening check-in is here for later in the day, when you have more of today to look back on. You can come back later, or continue now if this feels helpful.
+              </Text>
+              <View style={styles.promptActions}>
+                <Pressable onPress={() => setEveningPromptVisible(false)} style={({ pressed }) => [styles.promptSecondary, pressed && styles.rowPressed]}>
+                  <Text style={styles.promptSecondaryText}>Come back later</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setEveningPromptVisible(false);
+                    router.push('/dailies-evening');
+                  }}
+                  style={({ pressed }) => [styles.promptPrimary, pressed && styles.promptPrimaryPressed]}>
+                  <Text style={styles.promptPrimaryText}>Continue now</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
+      </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ffffff' },
-  content: { paddingHorizontal: 18, paddingBottom: 34, gap: 20 },
-  backButton: { alignSelf: 'flex-start', borderRadius: 8, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e6e0f5', paddingHorizontal: 14, paddingVertical: 9 },
-  backButtonText: { color: '#3a2c6b', fontSize: 15, fontWeight: '500' },
-  header: { alignItems: 'center', gap: 8, paddingTop: 8 },
-  title: { color: '#1f003d', textAlign: 'center', fontSize: 28, fontWeight: '400', lineHeight: 35 },
-  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: 17, lineHeight: 24 },
-  menu: { gap: 14 },
-  oval: { minHeight: 86, borderRadius: 8, alignItems: 'center', justifyContent: 'center', shadowColor: '#110c28', shadowOpacity: 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
-  ovalText: { color: '#1f003d', fontSize: 20, fontWeight: '400' },
-  ovalTextLight: { color: '#ffffff' },
-  about: { borderRadius: 8, backgroundColor: '#f1f1ff', padding: 16, gap: 10 },
-  aboutTitle: { color: '#1f003d', fontSize: 20, fontWeight: '600' },
-  aboutText: { color: '#1f003d', fontSize: 16, lineHeight: 25 },
+  screen: { flex: 1, backgroundColor: '#fffaeb' },
+  content: { paddingHorizontal: 18, paddingBottom: 34, gap: 24 },
+  waveWrap: { marginHorizontal: -18 },
+  wave: {
+    backgroundColor: '#fffaeb',
+    paddingTop: 8,
+    paddingHorizontal: 18,
+    paddingBottom: 22,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  stepLabel: {
+    color: '#817690',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
+  backControl: {
+    alignSelf: 'flex-start',
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingRight: 8,
+  },
+  backChevron: { color: '#3a2c6b', fontSize: 28, lineHeight: 30, fontWeight: '400' },
+  backControlText: { color: '#3a2c6b', fontSize: 16, fontWeight: '700' },
+  backButtonPressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
+  header: { alignItems: 'center', gap: 8, paddingTop: 12 },
+  grid: {
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+    shadowColor: '#110c28',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  categoryButton: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e8e3f0',
+    backgroundColor: '#ffffff',
+  },
+  categoryCopy: { flex: 1, gap: 3 },
+  categoryText: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
+  categoryMeta: { color: '#817690', fontSize: 13, fontWeight: '500' },
+  rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
+  chevron: { color: '#b7afc5', fontSize: 26, lineHeight: 28, fontWeight: '400' },
+  promptOverlay: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'flex-end',
+    zIndex: 12,
+  },
+  promptScrim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(31, 0, 61, 0.14)',
+  },
+  promptSheet: {
+    marginHorizontal: 18,
+    marginBottom: 112,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    padding: 18,
+    gap: 12,
+    shadowColor: '#110c28',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  promptTitle: { color: '#1f003d', fontSize: 21, lineHeight: 27, fontWeight: '700' },
+  promptText: { color: '#5e4f79', fontSize: 16, lineHeight: 23 },
+  promptActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  promptSecondary: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fffaf2',
+  },
+  promptSecondaryText: { color: '#3a2c6b', fontSize: 15, fontWeight: '700' },
+  promptPrimary: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#564d74',
+  },
+  promptPrimaryPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+  promptPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
 });

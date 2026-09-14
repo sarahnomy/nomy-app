@@ -21,6 +21,8 @@ from django.urls import re_path
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from core import views as core_views
+from express import views as express_views
 from users import views as user_views
 from users.forms import EmailVerificationLoginForm
 from django.contrib.auth.decorators import login_required
@@ -39,7 +41,11 @@ urlpatterns = [
     ),
     path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html'), name='logout'),
     path('api/mobile/login/', user_views.mobile_login, name='mobile_login'),
+    path('api/mobile/logout/', user_views.mobile_logout, name='mobile_logout'),
     path('api/mobile/register/', user_views.mobile_register, name='mobile_register'),
+    path('api/mobile/avatar-state/', core_views.mobile_avatar_state, name='mobile_avatar_state'),
+    path('api/mobile/support-recommendation/', core_views.mobile_support_recommendation, name='mobile_support_recommendation'),
+    path('api/mobile/express-response/', express_views.mobile_express_response, name='mobile_express_response'),
     path('verify-email/<uuid:token>/', user_views.verify_email, name='verify_email'),
     path('reflections/', include('reflections.urls')),
 

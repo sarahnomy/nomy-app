@@ -1,1 +1,1 @@
-export { useColorScheme } from 'react-native';
+export { useNomyColorScheme as useColorScheme } from '@/constants/color-mode';

@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from .forms import UserRegisterForm
 from django.core.mail import send_mail
@@ -112,6 +112,13 @@ def mobile_login(request):
 
 @csrf_exempt
 @require_POST
+def mobile_logout(request):
+    logout(request)
+    return JsonResponse({"ok": True})
+
+
+@csrf_exempt
+@require_POST
 def mobile_register(request):
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -131,16 +138,19 @@ def mobile_register(request):
         return JsonResponse({"ok": False, "error": first_form_error(form)}, status=400)
 
     user = form.save(commit=False)
-    user.is_active = False
+    user.is_active = True
     user.save()
-
-    send_verification_email(request, user)
+    login(request, user)
 
     return JsonResponse(
         {
             "ok": True,
-            "message": "Account created. Please verify your email before logging in.",
-            "email": user.email,
+            "message": "Account created.",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+            },
         },
         status=201,
     )

@@ -1,25 +1,10 @@
-import {
-  DMSans_300Light,
-  DMSans_300Light_Italic,
-  DMSans_400Regular,
-  DMSans_400Regular_Italic,
-  DMSans_500Medium,
-  DMSans_500Medium_Italic,
-  DMSans_600SemiBold,
-  DMSans_600SemiBold_Italic,
-  DMSans_700Bold,
-  DMSans_700Bold_Italic,
-  DMSans_800ExtraBold,
-  DMSans_800ExtraBold_Italic,
-  DMSans_900Black,
-  DMSans_900Black_Italic,
-  useFonts,
-} from '@expo-google-fonts/dm-sans';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { hydrateNightModePreference } from '@/constants/color-mode';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -28,33 +13,27 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [fontsLoaded] = useFonts({
-    DMSans_300Light,
-    DMSans_300Light_Italic,
-    DMSans_400Regular,
-    DMSans_400Regular_Italic,
-    DMSans_500Medium,
-    DMSans_500Medium_Italic,
-    DMSans_600SemiBold,
-    DMSans_600SemiBold_Italic,
-    DMSans_700Bold,
-    DMSans_700Bold_Italic,
-    DMSans_800ExtraBold,
-    DMSans_800ExtraBold_Italic,
-    DMSans_900Black,
-    DMSans_900Black_Italic,
-  });
 
-  if (!fontsLoaded) {
-    return null;
-  }
+  useEffect(() => {
+    void hydrateNightModePreference();
+  }, []);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <Stack
+        screenOptions={{
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animation: 'ios_from_right',
+        }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="register" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="support-right-now" options={{ headerShown: false }} />
+        <Stack.Screen name="emotionize-reflection" options={{ headerShown: false }} />
+        <Stack.Screen name="express-response" options={{ headerShown: false }} />
+        <Stack.Screen name="express-capture" options={{ headerShown: false }} />
         <Stack.Screen name="toolkit-breathing" options={{ headerShown: false }} />
         <Stack.Screen name="toolkit-puzzles" options={{ headerShown: false }} />
         <Stack.Screen name="dailies-morning" options={{ headerShown: false }} />
@@ -62,7 +41,7 @@ export default function RootLayout() {
         <Stack.Screen name="dailies-reflections" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }

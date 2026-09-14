@@ -9,6 +9,7 @@ urlpatterns = [
     path('options/', views.options, name='nomy-options'),
     path('about/', views.about, name='nomy-about'),
     path('help/', views.help, name='nomy-help'),
+    path('privacy/', views.privacy, name='nomy-privacy'),
 
     # Settings + password change (templates live in core/)
     path('settings/', views.settings, name='nomy-settings'),

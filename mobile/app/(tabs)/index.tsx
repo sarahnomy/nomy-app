@@ -1,296 +1,492 @@
-import { Image } from 'expo-image';
-import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router/react-navigation';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/nomy-type';
+import { TabSwipe } from '@/components/tab-swipe';
+import { getAvatarActivities, type AvatarActivity } from '@/constants/avatar';
 
-const moods = [
-  {
-    label: 'Unclear',
-    tone: 'A little hard to name',
-    support: 'Start by choosing one emotional space. You do not need the exact word yet.',
-    action: 'Open Emotionize',
+const HOME_ESSENTIALS_KEY = 'nomy_home_essentials';
+const DEFAULT_ESSENTIAL_IDS = ['calm-body', 'find-words', 'morning-check-in', 'understand-feeling'] as const;
+const MAX_ESSENTIALS = 4;
+
+const continueTargets = {
+  emotionize: {
+    title: 'Continue Emotionize',
+    description: 'Go back to exploring emotional language.',
     href: '/emotionize',
-    color: '#f1eeff',
+  },
+  dailies: {
+    title: 'Continue Check-in',
+    description: 'Return to your daily prompts.',
+    href: '/dailies',
+  },
+  express: {
+    title: 'Continue Express',
+    description: 'Keep finding words that fit.',
+    href: '/express',
+  },
+  toolkit: {
+    title: 'Continue Toolkit',
+    description: 'Return to grounding and focus tools.',
+    href: '/toolkit',
+  },
+  breathing: {
+    title: 'Continue Breathing',
+    description: 'Do another calm breathing round.',
+    href: '/toolkit-breathing',
+  },
+} as const;
+
+const essentials = [
+  {
+    id: 'calm-body',
+    title: 'Calm my body',
+    description: 'One guided breathing round.',
+    href: '/toolkit-breathing',
+    color: '#fde6cf',
   },
   {
-    label: 'Heavy',
-    tone: 'Low energy or tired',
-    support: 'Keep this small. A gentle daily check-in can help you notice what needs less pressure.',
-    action: 'Open Check-in',
-    href: '/dailies',
+    id: 'find-words',
+    title: 'Find words',
+    description: 'Open Express.',
+    href: '/express',
     color: '#e9f0fa',
   },
   {
-    label: 'Too much',
-    tone: 'Overloaded or tense',
-    support: 'Try regulating before reflecting. Your body may need quiet before words.',
-    action: 'Open Toolkit',
-    href: '/toolkit',
+    id: 'morning-check-in',
+    title: 'Morning check-in',
+    description: 'Start daily prompts.',
+    href: '/dailies-morning',
+    color: '#fffaeb',
+  },
+  {
+    id: 'understand-feeling',
+    title: 'Understand a feeling',
+    description: 'Open Emotionize.',
+    href: '/emotionize',
     color: '#f4f8f3',
   },
   {
-    label: 'Need words',
-    tone: 'Something to say',
-    support: 'Use a guided prompt to find language that feels honest and careful.',
+    id: 'memory-pairing',
+    title: 'Memory Pairing',
+    description: 'A calm focus puzzle.',
+    href: '/toolkit-puzzles',
+    color: '#fde6cf',
+  },
+] as const;
+
+const oftenHelpfulCards = [
+  {
+    title: 'When things feel too much',
+    description: 'Try one breathing round before choosing what to do next.',
+    action: 'Try breathing',
+    href: '/toolkit-breathing',
+    color: '#fde6cf',
+  },
+  {
+    title: 'When words feel stuck',
+    description: 'Express can offer direct or relational wording.',
     action: 'Open Express',
     href: '/express',
-    color: '#e1dcf9',
+    color: '#e9f0fa',
   },
 ] as const;
 
-const modules = [
-  {
-    title: 'Express',
-    text: 'Write or record what’s on your mind — no rules, just space to express yourself.',
-    image: require('@/assets/images/express.png'),
-    color: '#e1dcf9',
-    href: '/express',
-  },
-  {
-    title: 'Emotionize',
-    text: 'Explore and name your emotions through gentle prompts and visuals.',
-    image: require('@/assets/images/emotionize.png'),
-    color: '#e9c3f1',
-    href: '/emotionize',
-  },
-  {
-    title: 'Check-in',
-    text: 'Morning and evening reflections to help you check in with how you feel each day.',
-    image: require('@/assets/images/dailies.png'),
-    color: '#eaeaf5',
-    href: '/dailies',
-  },
-  {
-    title: 'Toolkit',
-    text: 'Quick grounding tools and calm exercises for support anytime.',
-    image: require('@/assets/images/toolkit.png'),
-    color: '#f9efe3',
-    href: '/toolkit',
-  },
-] as const;
+type ContinueFeature = keyof typeof continueTargets;
+type EssentialId = (typeof essentials)[number]['id'];
+type EssentialItem = (typeof essentials)[number];
+
+function getContinueFeature(activities: AvatarActivity[]) {
+  const lastFeature = [...activities]
+    .reverse()
+    .find((activity) => activity.feature && activity.feature in continueTargets)?.feature;
+
+  return lastFeature as ContinueFeature | undefined;
+}
+
+function isEssentialId(value: string): value is EssentialId {
+  return essentials.some((item) => item.id === value);
+}
+
+function timeAwareEssential(item: EssentialItem, hour: number) {
+  if (item.id !== 'morning-check-in') {
+    return item;
+  }
+
+  if (hour >= 17) {
+    return {
+      ...item,
+      title: 'Evening reflection',
+      description: 'Reflect on today.',
+      href: '/dailies-evening',
+    };
+  }
+
+  if (hour >= 12) {
+    return {
+      ...item,
+      title: 'Daily check-in',
+      description: 'Choose morning or evening.',
+      href: '/dailies',
+    };
+  }
+
+  return item;
+}
 
 export default function HomeScreen() {
-  const [selectedMood, setSelectedMood] = useState(moods[0]);
+  const [activities, setActivities] = useState<AvatarActivity[]>([]);
+  const [essentialIds, setEssentialIds] = useState<EssentialId[]>([...DEFAULT_ESSENTIAL_IDS]);
+  const [editingEssentials, setEditingEssentials] = useState(false);
+  const [essentialsDragging, setEssentialsDragging] = useState(false);
+  const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
 
-  const avatarState = useMemo(() => {
-    if (selectedMood.label === 'Too much') {
-      return 'Energy is high. Let’s lower the demand first.';
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      async function loadHome() {
+        const [items, savedEssentials] = await Promise.all([
+          getAvatarActivities(),
+          AsyncStorage.getItem(HOME_ESSENTIALS_KEY).catch(() => null),
+        ]);
+
+        if (active) {
+          setCurrentHour(new Date().getHours());
+          setActivities(items);
+
+          if (savedEssentials) {
+            const parsed = JSON.parse(savedEssentials);
+            if (Array.isArray(parsed)) {
+              const nextIds = parsed.filter((item): item is EssentialId => typeof item === 'string' && isEssentialId(item));
+              if (nextIds.length) {
+                setEssentialIds(nextIds.slice(0, MAX_ESSENTIALS));
+              }
+            }
+          }
+        }
+      }
+
+      loadHome().catch(() => {
+        // Home should still render if local customisation cannot be loaded.
+      });
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const continueFeature = useMemo(() => getContinueFeature(activities), [activities]);
+  const continueItem = continueFeature ? continueTargets[continueFeature] : null;
+  const selectedEssentials = useMemo(
+    () => essentials.filter((item) => essentialIds.includes(item.id)).map((item) => timeAwareEssential(item, currentHour)),
+    [currentHour, essentialIds],
+  );
+  const visibleEssentials = useMemo(
+    () => essentials.map((item) => timeAwareEssential(item, currentHour)),
+    [currentHour],
+  );
+
+  async function saveEssentials(nextIds: EssentialId[]) {
+    setEssentialIds(nextIds);
+    try {
+      await AsyncStorage.setItem(HOME_ESSENTIALS_KEY, JSON.stringify(nextIds));
+    } catch {
+      // Customisation should never block Home.
     }
-    if (selectedMood.label === 'Heavy') {
-      return 'Energy is low. A smaller step is enough.';
+  }
+
+  function toggleEssential(id: EssentialId) {
+    const alreadySelected = essentialIds.includes(id);
+    if (alreadySelected) {
+      if (essentialIds.length <= 1) {
+        return;
+      }
+      void saveEssentials(essentialIds.filter((item) => item !== id));
+      return;
     }
-    if (selectedMood.label === 'Need words') {
-      return 'Words are nearby. We can shape them gently.';
-    }
-    return 'We can begin without needing the perfect label.';
-  }, [selectedMood]);
+
+    const nextIds = [...essentialIds, id].slice(-MAX_ESSENTIALS);
+    void saveEssentials(nextIds);
+  }
 
   return (
+    <TabSwipe current="/" disabled={essentialsDragging}>
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerCopy}>
-            <Image
-              source={require('@/assets/images/nomy-logo-new.png')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-            <Text style={styles.subtitle}>What would you like to do today?</Text>
-          </View>
-          <Image source={require('@/assets/images/nomy-avatar.png')} style={styles.avatar} />
-        </View>
-
-        <View style={styles.accountLinks}>
-          <Link href="/login" asChild>
-            <Pressable style={styles.accountButton}>
-              <Text style={styles.accountButtonText}>Log in</Text>
-            </Pressable>
-          </Link>
-          <Link href="/register" asChild>
-            <Pressable style={styles.accountButton}>
-              <Text style={styles.accountButtonText}>Create account</Text>
-            </Pressable>
-          </Link>
-        </View>
-
-        <View style={styles.checkInCard}>
-          <View style={styles.checkInHeader}>
-            <View style={styles.checkInCopy}>
-              <Text style={styles.kicker}>Adaptive Avatar</Text>
-              <Text style={styles.checkInTitle}>How are you arriving?</Text>
-            </View>
-            <View style={styles.avatarBubble}>
-              <Image source={require('@/assets/images/nomy-avatar.png')} style={styles.checkInAvatar} contentFit="contain" />
+      <View style={styles.shell}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.heroWrap}>
+            <View style={styles.hero}>
+              <View style={styles.promptBlock}>
+                <Text style={styles.kicker}>Today</Text>
+                <Text style={styles.promptText}>What would help next?</Text>
+                <Text style={styles.promptSubtext}>Pick up where you left off, or keep your most useful supports close.</Text>
+              </View>
             </View>
           </View>
 
-          <Text style={styles.avatarState}>{avatarState}</Text>
+          {continueItem ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Continue</Text>
+              <Pressable
+                onPress={() => router.push(continueItem.href)}
+                style={({ pressed }) => [styles.continueCard, pressed && styles.quickCardPressed]}>
+                <View style={styles.continueCopy}>
+                  <Text style={styles.continueEyebrow}>Last used</Text>
+                  <Text style={styles.continueTitle}>{continueItem.title}</Text>
+                  <Text style={styles.continueText}>{continueItem.description}</Text>
+                </View>
+                <Text style={styles.choiceChevron}>›</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
-          <View style={styles.moodGrid}>
-            {moods.map((mood) => {
-              const active = selectedMood.label === mood.label;
-              return (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your essentials</Text>
+              <Pressable
+                onPress={() => setEditingEssentials((current) => !current)}
+                style={({ pressed }) => [styles.editButton, pressed && styles.quickCardPressed]}>
+                <Text style={styles.editButtonText}>{editingEssentials ? 'Done' : 'Edit'}</Text>
+              </Pressable>
+            </View>
+
+            {editingEssentials ? (
+              <View style={styles.essentialsPicker}>
+                <Text style={styles.pickerHint}>Choose up to {MAX_ESSENTIALS}. Keep at least one.</Text>
+                {visibleEssentials.map((item) => {
+                  const selected = essentialIds.includes(item.id);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => toggleEssential(item.id)}
+                      style={({ pressed }) => [
+                        styles.essentialOption,
+                        { backgroundColor: selected ? item.color : '#ffffff' },
+                        selected && styles.essentialOptionSelected,
+                        pressed && styles.quickCardPressed,
+                      ]}>
+                      <View style={styles.essentialOptionCopy}>
+                        <Text style={styles.essentialOptionTitle}>{item.title}</Text>
+                        <Text style={styles.essentialOptionText}>{item.description}</Text>
+                      </View>
+                      <Text style={[styles.checkMark, selected && styles.checkMarkSelected]}>{selected ? '✓' : '+'}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                contentContainerStyle={styles.essentialsGrid}
+                onMomentumScrollEnd={() => setEssentialsDragging(false)}
+                onScrollBeginDrag={() => setEssentialsDragging(true)}
+                onScrollEndDrag={() => setEssentialsDragging(false)}
+                showsHorizontalScrollIndicator={false}>
+                {selectedEssentials.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => router.push(item.href as Parameters<typeof router.push>[0])}
+                    style={({ pressed }) => [styles.essentialCard, { backgroundColor: item.color }, pressed && styles.quickCardPressed]}>
+                    <Text style={styles.essentialTitle}>{item.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Often helpful</Text>
+            <View style={styles.oftenList}>
+              {oftenHelpfulCards.map((item) => (
                 <Pressable
-                  key={mood.label}
-                  onPress={() => setSelectedMood(mood)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  style={[styles.moodButton, { backgroundColor: mood.color }, active && styles.moodButtonActive]}>
-                  <Text style={styles.moodLabel}>{mood.label}</Text>
-                  <Text style={styles.moodTone}>{mood.tone}</Text>
+                  key={item.title}
+                  onPress={() => router.push(item.href)}
+                  style={({ pressed }) => [styles.oftenCard, { backgroundColor: item.color }, pressed && styles.quickCardPressed]}>
+                  <View style={styles.choiceCopy}>
+                    <Text style={styles.oftenTitle}>{item.title}</Text>
+                    <Text style={styles.oftenAction}>{item.action}</Text>
+                  </View>
+                  <Text style={styles.choiceChevron}>›</Text>
                 </Pressable>
-              );
-            })}
+              ))}
+            </View>
           </View>
 
-          <View style={styles.recommendation}>
-            <Text style={styles.recommendationText}>{selectedMood.support}</Text>
-            <Link href={selectedMood.href} asChild>
-              <Pressable style={styles.recommendationButton}>
-                <Text style={styles.recommendationButtonText}>{selectedMood.action}</Text>
-              </Pressable>
-            </Link>
-          </View>
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>All tools</Text>
-          <Text style={styles.sectionHint}>Always available</Text>
-        </View>
-
-        <View style={styles.list}>
-          {modules.map((item) => (
-            <Link key={item.title} href={item.href} asChild>
-              <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
-                <View style={[styles.iconTile, { backgroundColor: item.color }]}>
-                  <Image source={item.image} style={styles.moduleImage} contentFit="contain" />
-                </View>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{item.title}</Text>
-                  <Text style={styles.rowText}>{item.text}</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            </Link>
-          ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
+    </TabSwipe>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fbf9ff' },
-  content: { paddingHorizontal: 18, paddingBottom: 34, gap: 18 },
-  header: {
+  screen: { flex: 1, backgroundColor: '#fffaf2' },
+  shell: { flex: 1 },
+  content: { flexGrow: 1, paddingHorizontal: 18, paddingBottom: 116, gap: 22 },
+  heroWrap: { marginHorizontal: -18 },
+  hero: {
+    backgroundColor: '#fffaf2',
+    paddingTop: 4,
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+    gap: 26,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  promptBlock: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-start',
+    paddingTop: 12,
+    gap: 10,
+  },
+  kicker: {
+    color: '#817690',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  promptText: { color: '#1f1635', fontSize: 32, lineHeight: 38, fontWeight: '900', letterSpacing: -0.65 },
+  promptSubtext: { color: '#5e4f79', fontSize: 17, lineHeight: 25, fontWeight: '600', maxWidth: 330 },
+  quickCardPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.99 }],
+  },
+  section: { gap: 10 },
+  sectionTitle: {
+    color: '#817690',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  sectionHeader: {
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    gap: 16,
+    gap: 12,
   },
-  headerCopy: { flex: 1 },
-  logo: { width: 150, height: 70, marginLeft: -12 },
-  subtitle: { color: '#1f003d', fontSize: 20, lineHeight: 26, fontWeight: '500' },
-  avatar: { width: 58, height: 58, borderRadius: 8 },
-  accountLinks: { flexDirection: 'row', gap: 10 },
-  accountButton: { flex: 1, minHeight: 46, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ded7ec' },
-  accountButtonText: { color: '#1f003d', fontSize: 15, fontWeight: '800' },
-  checkInCard: {
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#ded7ec',
-    padding: 16,
-    gap: 16,
-  },
-  checkInHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-  checkInCopy: { flex: 1, gap: 5 },
-  kicker: { color: '#5e4f79', fontSize: 13, fontWeight: '800', textTransform: 'uppercase' },
-  checkInTitle: { color: '#1f003d', fontSize: 27, fontWeight: '800', lineHeight: 33 },
-  avatarBubble: {
-    width: 86,
-    height: 86,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#eee9ff',
-  },
-  checkInAvatar: { width: 70, height: 70 },
-  avatarState: {
-    color: '#1f003d',
-    backgroundColor: '#f6f2ff',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: '600',
-  },
-  moodGrid: { gap: 10 },
-  moodButton: {
-    minHeight: 72,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ded7ec',
-    padding: 13,
-    justifyContent: 'center',
-    gap: 4,
-  },
-  moodButtonActive: {
-    borderWidth: 2,
-    borderColor: '#1f003d',
-  },
-  moodLabel: { color: '#1f003d', fontSize: 18, fontWeight: '800' },
-  moodTone: { color: '#5e4f79', fontSize: 15, lineHeight: 20 },
-  recommendation: {
-    borderRadius: 8,
-    backgroundColor: '#19003d',
-    padding: 14,
-    gap: 14,
-  },
-  recommendationText: { color: '#f4edff', fontSize: 16, lineHeight: 24 },
-  recommendationButton: {
-    minHeight: 48,
-    borderRadius: 8,
+  editButton: {
+    minHeight: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.12)',
+    paddingHorizontal: 14,
   },
-  recommendationButtonText: { color: '#1f003d', fontSize: 16, fontWeight: '800' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  sectionTitle: { color: '#1f003d', fontSize: 22, fontWeight: '800' },
-  sectionHint: { color: '#5e4f79', fontSize: 14, fontWeight: '700' },
-  list: {
-    borderRadius: 8,
+  editButtonText: { color: '#3a2c6b', fontSize: 14, fontWeight: '900' },
+  continueCard: {
+    minHeight: 146,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
     backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#eee8f8',
-    overflow: 'hidden',
-  },
-  row: {
-    minHeight: 96,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee8f8',
+    gap: 12,
+    shadowColor: '#110c28',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
   },
-  rowPressed: { backgroundColor: '#faf7ff' },
-  iconTile: {
-    width: 58,
-    height: 58,
-    borderRadius: 8,
-    alignItems: 'center',
+  continueCopy: { flex: 1, gap: 6 },
+  continueEyebrow: { color: '#70677f', fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.35 },
+  continueTitle: { color: '#1f1635', fontSize: 22, lineHeight: 27, fontWeight: '800', letterSpacing: -0.35 },
+  continueText: { color: '#5e4f79', fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  essentialsGrid: { gap: 10, paddingRight: 18 },
+  essentialCard: {
+    width: 164,
+    minHeight: 86,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+    padding: 14,
     justifyContent: 'center',
+    shadowColor: '#110c28',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
   },
-  moduleImage: { width: 42, height: 42 },
-  rowCopy: { flex: 1, gap: 5 },
-  rowTitle: { color: '#1f003d', fontSize: 19, fontWeight: '700' },
-  rowText: { color: '#5e4f79', fontSize: 15, lineHeight: 21 },
-  chevron: { color: '#7e7193', fontSize: 28, lineHeight: 30 },
+  essentialTitle: { color: '#1f1635', fontSize: 17, lineHeight: 22, fontWeight: '700', letterSpacing: -0.2, textAlign: 'center' },
+  essentialText: { color: '#5e4f79', fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  essentialsPicker: {
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+    overflow: 'hidden',
+  },
+  pickerHint: {
+    color: '#70677f',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+  essentialOption: {
+    minHeight: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(31, 22, 53, 0.08)',
+  },
+  essentialOptionSelected: {
+    borderColor: 'rgba(31, 22, 53, 0.14)',
+  },
+  essentialOptionCopy: { flex: 1, gap: 3 },
+  essentialOptionTitle: { color: '#1f1635', fontSize: 16, lineHeight: 21, fontWeight: '900' },
+  essentialOptionText: { color: '#5e4f79', fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  checkMark: {
+    minWidth: 30,
+    height: 30,
+    borderRadius: 15,
+    overflow: 'hidden',
+    textAlign: 'center',
+    color: '#817690',
+    fontSize: 20,
+    lineHeight: 30,
+    fontWeight: '900',
+    backgroundColor: '#fffaf2',
+  },
+  checkMarkSelected: {
+    color: '#ffffff',
+    backgroundColor: '#1f003d',
+  },
+  choiceCopy: { flex: 1, gap: 6 },
+  choiceChevron: { color: '#1f1635', fontSize: 30, lineHeight: 30, fontWeight: '500', opacity: 0.36 },
+  oftenList: { gap: 12 },
+  oftenCard: {
+    minHeight: 112,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#110c28',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  oftenTitle: { color: '#1f1635', fontSize: 19, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
+  oftenText: { color: '#5e4f79', fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  oftenAction: { color: '#3a2c6b', fontSize: 14, lineHeight: 18, fontWeight: '900' },
 });

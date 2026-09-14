@@ -41,6 +41,15 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.onrender.com"
 ]
 
+if DEBUG:
+    ALLOWED_HOSTS += ["*"]
+    CSRF_TRUSTED_ORIGINS += [
+        "https://*.localhost.run",
+        "https://*.lhr.life",
+        "https://*.loca.lt",
+        "https://*.trycloudflare.com",
+    ]
+
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000
