@@ -181,7 +181,6 @@ export default function ProfileScreen() {
           <View style={styles.header}>
             <Text style={styles.kicker}>Profile</Text>
             <Text style={styles.title}>{sessionUser ? sessionUser.username : 'Your nomy space'}</Text>
-            <Text style={styles.subtitle}>Account, saved reflections, and gentle patterns live here.</Text>
           </View>
 
           <View style={styles.accountCard}>
