@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TabSwipe } from '@/components/tab-swipe';
@@ -49,6 +49,8 @@ const profileTabs: { id: ProfileTab; label: string }[] = [
   { id: 'recap', label: 'Recap' },
 ];
 
+const SIDE_MENU_WIDTH = 284;
+
 export default function ProfileScreen() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [checkInReflections, setCheckInReflections] = useState<CheckInReflectionEntry[]>([]);
@@ -60,6 +62,20 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [menuTranslateX] = useState(() => new Animated.Value(SIDE_MENU_WIDTH));
+
+  useEffect(() => {
+    if (!accountMenuOpen) {
+      return;
+    }
+
+    menuTranslateX.setValue(SIDE_MENU_WIDTH);
+    Animated.timing(menuTranslateX, {
+      toValue: 0,
+      duration: 230,
+      useNativeDriver: true,
+    }).start();
+  }, [accountMenuOpen, menuTranslateX]);
 
   useFocusEffect(
     useCallback(() => {
@@ -415,17 +431,7 @@ export default function ProfileScreen() {
               onPress={() => setAccountMenuOpen(false)}
               style={styles.floatingAccountMenuScrim}
             />
-            <View style={styles.floatingAccountMenu}>
-              <View style={styles.sideMenuHeader}>
-                <Text style={styles.sideMenuTitle}>Profile menu</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Close profile menu"
-                  onPress={() => setAccountMenuOpen(false)}
-                  style={({ pressed }) => [styles.sideMenuClose, pressed && styles.pressed]}>
-                  <Text style={styles.sideMenuCloseText}>×</Text>
-                </Pressable>
-              </View>
+            <Animated.View style={[styles.floatingAccountMenu, { transform: [{ translateX: menuTranslateX }] }]}>
               <Pressable
                 onPress={() => {
                   setAccountMenuOpen(false);
@@ -443,7 +449,7 @@ export default function ProfileScreen() {
                   {isLoggingOut ? 'Logging out…' : 'Log out'}
                 </Text>
               </Pressable>
-            </View>
+            </Animated.View>
           </View>
         ) : null}
       </SafeAreaView>
@@ -525,7 +531,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: 284,
+    width: SIDE_MENU_WIDTH,
     borderTopLeftRadius: 28,
     borderBottomLeftRadius: 28,
     backgroundColor: '#ffffff',
@@ -537,28 +543,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
-    paddingTop: 58,
+    paddingTop: 88,
   },
-  sideMenuHeader: {
-    minHeight: 54,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee8f6',
-  },
-  sideMenuTitle: { color: '#1f1635', fontSize: 18, lineHeight: 23, fontWeight: '800' },
-  sideMenuClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fbf9ff',
-  },
-  sideMenuCloseText: { color: '#5e4f79', fontSize: 24, lineHeight: 26, fontWeight: '500' },
   accountMenuRow: {
     minHeight: 56,
     paddingHorizontal: 18,
