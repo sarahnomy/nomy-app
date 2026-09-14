@@ -58,6 +58,8 @@ export default function ProfileScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [avatarId, setAvatarId] = useState<AvatarId>('sage');
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,6 +157,8 @@ export default function ProfileScreen() {
     }
 
     setIsLoggingOut(true);
+    setAccountMenuOpen(false);
+    setAvatarEditorOpen(false);
     await logoutSessionUser();
     setSessionUser(null);
     setIsLoggingOut(false);
@@ -162,6 +166,7 @@ export default function ProfileScreen() {
 
   async function selectAvatar(nextAvatarId: AvatarId) {
     setAvatarId(nextAvatarId);
+    setAvatarEditorOpen(false);
     try {
       await AsyncStorage.setItem(PROFILE_AVATAR_KEY, nextAvatarId);
     } catch {
@@ -182,9 +187,49 @@ export default function ProfileScreen() {
           <View style={styles.accountCard}>
             {sessionUser ? (
               <>
+                <View style={styles.accountMenuWrap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Open profile menu"
+                    onPress={() => setAccountMenuOpen((current) => !current)}
+                    style={({ pressed }) => [styles.accountMenuButton, pressed && styles.pressed]}>
+                    <Text style={styles.accountMenuButtonText}>•••</Text>
+                  </Pressable>
+                  {accountMenuOpen ? (
+                    <View style={styles.accountMenu}>
+                      <Pressable
+                        onPress={() => {
+                          setAccountMenuOpen(false);
+                          router.push('/settings');
+                        }}
+                        style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
+                        <Text style={styles.accountMenuText}>Settings and FAQs</Text>
+                        <Text style={styles.chevron}>›</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={isLoggingOut}
+                        onPress={logout}
+                        style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
+                        <Text style={[styles.accountMenuText, styles.accountMenuDangerText]}>
+                          {isLoggingOut ? 'Logging out…' : 'Log out'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+
                 <View style={styles.profileHero}>
-                  <View style={[styles.profileAvatar, { backgroundColor: activeAvatar.backgroundColor }]}>
-                    <Text style={[styles.profileAvatarText, { color: activeAvatar.color }]}>{profileInitial}</Text>
+                  <View style={styles.profileAvatarWrap}>
+                    <View style={[styles.profileAvatar, { backgroundColor: activeAvatar.backgroundColor }]}>
+                      <Text style={[styles.profileAvatarText, { color: activeAvatar.color }]}>{profileInitial}</Text>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit profile avatar"
+                      onPress={() => setAvatarEditorOpen((current) => !current)}
+                      style={({ pressed }) => [styles.avatarEditButton, pressed && styles.pressed]}>
+                      <Text style={styles.avatarEditText}>Edit</Text>
+                    </Pressable>
                   </View>
                   <View style={styles.profileHeroCopy}>
                     <Text style={styles.accountTitle}>{sessionUser.username}</Text>
@@ -192,37 +237,32 @@ export default function ProfileScreen() {
                   </View>
                 </View>
 
-                <View style={styles.avatarPicker}>
-                  <Text style={styles.accountLabel}>Profile colour</Text>
-                  <View style={styles.avatarOptions}>
-                    {avatarOptions.map((option) => {
-                      const selected = option.id === avatarId;
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={selected ? { selected: true } : {}}
-                          accessibilityLabel={`Use ${option.label} profile colour`}
-                          key={option.id}
-                          onPress={() => selectAvatar(option.id)}
-                          style={({ pressed }) => [
-                            styles.avatarOption,
-                            { backgroundColor: option.backgroundColor },
-                            selected && styles.avatarOptionSelected,
-                            pressed && styles.pressed,
-                          ]}>
-                          <Text style={[styles.avatarOptionText, { color: option.color }]}>{profileInitial}</Text>
-                        </Pressable>
-                      );
-                    })}
+                {avatarEditorOpen ? (
+                  <View style={styles.avatarPicker}>
+                    <Text style={styles.accountLabel}>Choose a profile colour</Text>
+                    <View style={styles.avatarOptions}>
+                      {avatarOptions.map((option) => {
+                        const selected = option.id === avatarId;
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={selected ? { selected: true } : {}}
+                            accessibilityLabel={`Use ${option.label} profile colour`}
+                            key={option.id}
+                            onPress={() => selectAvatar(option.id)}
+                            style={({ pressed }) => [
+                              styles.avatarOption,
+                              { backgroundColor: option.backgroundColor },
+                              selected && styles.avatarOptionSelected,
+                              pressed && styles.pressed,
+                            ]}>
+                            <Text style={[styles.avatarOptionText, { color: option.color }]}>{profileInitial}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
-                </View>
-
-                <Pressable
-                  disabled={isLoggingOut}
-                  onPress={logout}
-                  style={({ pressed }) => [styles.logoutButton, (pressed || isLoggingOut) && styles.pressed]}>
-                  <Text style={styles.logoutButtonText}>{isLoggingOut ? 'Logging out…' : 'Log out'}</Text>
-                </Pressable>
+                ) : null}
               </>
             ) : (
               <>
@@ -244,12 +284,14 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <View style={styles.profileActions}>
-            <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [styles.rowButton, pressed && styles.rowPressed]}>
-              <Text style={styles.rowText}>Settings and FAQs</Text>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          </View>
+          {!sessionUser ? (
+            <View style={styles.profileActions}>
+              <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [styles.rowButton, pressed && styles.rowPressed]}>
+                <Text style={styles.rowText}>Settings and FAQs</Text>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {sessionUser ? (
             <>
@@ -409,6 +451,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 18,
     gap: 16,
+    position: 'relative',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
     shadowColor: '#110c28',
@@ -432,6 +475,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
+    paddingRight: 46,
+  },
+  accountMenuWrap: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    zIndex: 10,
+    alignItems: 'flex-end',
+  },
+  accountMenuButton: {
+    minWidth: 38,
+    minHeight: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fbf9ff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5dff0',
+  },
+  accountMenuButtonText: {
+    color: '#5e4f79',
+    fontSize: 15,
+    lineHeight: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginTop: -4,
+  },
+  accountMenu: {
+    width: 190,
+    marginTop: 8,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5dff0',
+    overflow: 'hidden',
+    shadowColor: '#110c28',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  accountMenuRow: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  accountMenuText: { flex: 1, color: '#1f1635', fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  accountMenuDangerText: { color: '#8a2440' },
+  profileAvatarWrap: {
+    position: 'relative',
   },
   profileAvatar: {
     width: 82,
@@ -444,7 +540,28 @@ const styles = StyleSheet.create({
   },
   profileAvatarText: { fontSize: 34, lineHeight: 38, fontWeight: '900' },
   profileHeroCopy: { flex: 1, gap: 4 },
-  avatarPicker: { gap: 10 },
+  avatarEditButton: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    minHeight: 28,
+    borderRadius: 14,
+    backgroundColor: '#1f1635',
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  avatarEditText: { color: '#ffffff', fontSize: 12, lineHeight: 14, fontWeight: '800' },
+  avatarPicker: {
+    gap: 10,
+    borderRadius: 20,
+    backgroundColor: '#fbf9ff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5dff0',
+    padding: 12,
+  },
   avatarOptions: { flexDirection: 'row', gap: 10 },
   avatarOption: {
     width: 44,
