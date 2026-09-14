@@ -318,7 +318,7 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.statCard}>
                       <Text style={styles.statNumber}>{activities.length}</Text>
-                      <Text style={styles.statLabel}>support actions</Text>
+                      <Text style={styles.statLabel}>support tools used</Text>
                     </View>
                   </View>
 
