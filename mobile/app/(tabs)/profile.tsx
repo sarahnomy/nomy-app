@@ -334,7 +334,7 @@ export default function ProfileScreen() {
                             </View>
                             <View style={styles.featureStatNumberBlock}>
                               <Text style={styles.featureStatNumber}>{item.reflected}</Text>
-                              <Text style={styles.featureStatLabel}>{item.name === 'Toolkit' ? 'completed' : 'saved'}</Text>
+                              <Text style={styles.featureStatLabel}>{item.name === 'Toolkit' ? 'done' : 'saved'}</Text>
                             </View>
                           </View>
                           <Text style={styles.featureStatDetail}>{item.detail}</Text>
