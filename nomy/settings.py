@@ -30,13 +30,13 @@ DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "nomy-app.onrender.com",     # your Render free domain
+    "nomy-app-fq92.onrender.com",     # your Render free domain
     "yourdomain.com"         # replace with your custom domain later
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://nomy-app.onrender.com",
-    "http://nomy-app.onrender.com",
+    "https://nomy-app-fq92.onrender.com",
+    "http://nomy-app-fq92.onrender.com",
     "https://yourdomain.com",
     "https://*.onrender.com"
 ]

@@ -10,7 +10,7 @@ Last updated: 4 September 2026
 - iOS build number: `1`
 - Android version code: `1`
 - EAS config: `mobile/eas.json`
-- Production API URL: `https://nomy-app.onrender.com`
+- Production API URL: `https://nomy-app-fq92.onrender.com`
 
 Before the first real store build, confirm the bundle/package ID. Changing it later is awkward once builds/users exist.
 
@@ -30,7 +30,7 @@ npx eas-cli@latest submit --platform android --profile production
 Privacy policy URL:
 
 ```text
-https://nomy-app.onrender.com/privacy/
+https://nomy-app-fq92.onrender.com/privacy/
 ```
 
 Support email:

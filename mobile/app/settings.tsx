@@ -48,7 +48,7 @@ const faqs = [
   {
     question: 'What is the privacy policy?',
     answer:
-      'You can read the privacy policy at https://nomy-app.onrender.com/privacy/. It explains what Nomy stores, why it stores it, and how to ask about deletion.',
+      'You can read the privacy policy at https://nomy-app-fq92.onrender.com/privacy/. It explains what Nomy stores, why it stores it, and how to ask about deletion.',
   },
   {
     question: 'Is Nomy medical advice?',
