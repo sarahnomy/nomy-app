@@ -39,7 +39,6 @@ export default function SupportScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Text style={styles.kicker}>Support</Text>
-            <Text style={styles.title}>What support do you want?</Text>
           </View>
 
           <View style={styles.list}>
@@ -68,22 +67,13 @@ export default function SupportScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fffaf2' },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 126, gap: 22 },
-  header: { alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingTop: 8 },
+  header: { alignItems: 'flex-start', gap: 8, paddingHorizontal: 8, paddingTop: 8 },
   kicker: {
     color: '#817690',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-  },
-  title: {
-    color: '#1f1635',
-    textAlign: 'center',
-    alignSelf: 'stretch',
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '800',
-    letterSpacing: -0.45,
   },
   list: {
     borderRadius: 28,

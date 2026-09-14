@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 18, paddingBottom: 116, gap: 22 },
   heroWrap: { marginHorizontal: -18 },
   hero: {
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#ffffff',
     paddingTop: 4,
     paddingHorizontal: 18,
     paddingBottom: 10,

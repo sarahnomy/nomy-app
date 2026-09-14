@@ -77,6 +77,14 @@ export default function ProfileScreen() {
     }).start();
   }, [accountMenuOpen, menuTranslateX]);
 
+  function closeAccountMenu() {
+    Animated.timing(menuTranslateX, {
+      toValue: SIDE_MENU_WIDTH,
+      duration: 210,
+      useNativeDriver: true,
+    }).start(() => setAccountMenuOpen(false));
+  }
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -428,13 +436,13 @@ export default function ProfileScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close profile menu"
-              onPress={() => setAccountMenuOpen(false)}
+              onPress={closeAccountMenu}
               style={styles.floatingAccountMenuScrim}
             />
             <Animated.View style={[styles.floatingAccountMenu, { transform: [{ translateX: menuTranslateX }] }]}>
               <Pressable
                 onPress={() => {
-                  setAccountMenuOpen(false);
+                  closeAccountMenu();
                   router.push('/settings');
                 }}
                 style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
