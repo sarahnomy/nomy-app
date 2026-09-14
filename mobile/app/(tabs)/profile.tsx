@@ -194,27 +194,6 @@ export default function ProfileScreen() {
                     style={({ pressed }) => [styles.accountMenuButton, pressed && styles.pressed]}>
                     <Text style={styles.accountMenuButtonText}>•••</Text>
                   </Pressable>
-                  {accountMenuOpen ? (
-                    <View style={styles.accountMenu}>
-                      <Pressable
-                        onPress={() => {
-                          setAccountMenuOpen(false);
-                          router.push('/settings');
-                        }}
-                        style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
-                        <Text style={styles.accountMenuText}>Settings and FAQs</Text>
-                        <Text style={styles.chevron}>›</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={isLoggingOut}
-                        onPress={logout}
-                        style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
-                        <Text style={[styles.accountMenuText, styles.accountMenuDangerText]}>
-                          {isLoggingOut ? 'Logging out…' : 'Log out'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
                 </View>
 
                 <View style={styles.profileHero}>
@@ -427,6 +406,35 @@ export default function ProfileScreen() {
             </>
           ) : null}
         </ScrollView>
+        {sessionUser && accountMenuOpen ? (
+          <View style={styles.floatingAccountMenuLayer} pointerEvents="box-none">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close profile menu"
+              onPress={() => setAccountMenuOpen(false)}
+              style={styles.floatingAccountMenuScrim}
+            />
+            <View style={styles.floatingAccountMenu}>
+              <Pressable
+                onPress={() => {
+                  setAccountMenuOpen(false);
+                  router.push('/settings');
+                }}
+                style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
+                <Text style={styles.accountMenuText}>Settings and FAQs</Text>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+              <Pressable
+                disabled={isLoggingOut}
+                onPress={logout}
+                style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
+                <Text style={[styles.accountMenuText, styles.accountMenuDangerText]}>
+                  {isLoggingOut ? 'Logging out…' : 'Log out'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </SafeAreaView>
     </TabSwipe>
   );
@@ -501,9 +509,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: -4,
   },
-  accountMenu: {
+  floatingAccountMenuLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 50,
+    elevation: 50,
+  },
+  floatingAccountMenuScrim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'transparent',
+  },
+  floatingAccountMenu: {
+    position: 'absolute',
+    right: 18,
+    top: 132,
     width: 190,
-    marginTop: 8,
     borderRadius: 18,
     backgroundColor: '#ffffff',
     borderWidth: StyleSheet.hairlineWidth,
