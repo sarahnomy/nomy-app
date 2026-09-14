@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router/react-navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -30,6 +31,24 @@ function formatDate(value: string) {
   });
 }
 
+const PROFILE_AVATAR_KEY = 'nomy_profile_avatar';
+
+const avatarOptions = [
+  { id: 'sage', label: 'Sage', backgroundColor: '#dfeee0', color: '#314d34' },
+  { id: 'sky', label: 'Sky', backgroundColor: '#dce9f8', color: '#294866' },
+  { id: 'lavender', label: 'Lavender', backgroundColor: '#e8def8', color: '#453460' },
+  { id: 'peach', label: 'Peach', backgroundColor: '#fde6cf', color: '#6b4328' },
+] as const;
+
+type AvatarId = (typeof avatarOptions)[number]['id'];
+type ProfileTab = 'overview' | 'saved' | 'recap';
+
+const profileTabs: { id: ProfileTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'saved', label: 'Saved' },
+  { id: 'recap', label: 'Recap' },
+];
+
 export default function ProfileScreen() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [checkInReflections, setCheckInReflections] = useState<CheckInReflectionEntry[]>([]);
@@ -37,6 +56,8 @@ export default function ProfileScreen() {
   const [expressReflections, setExpressReflections] = useState<ExpressReflectionEntry[]>([]);
   const [activities, setActivities] = useState<AvatarActivity[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [avatarId, setAvatarId] = useState<AvatarId>('sage');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
 
   useFocusEffect(
     useCallback(() => {
@@ -58,11 +79,12 @@ export default function ProfileScreen() {
           return;
         }
 
-        const [checkInItems, emotionItems, expressItems, activityItems] = await Promise.all([
+        const [checkInItems, emotionItems, expressItems, activityItems, savedAvatarId] = await Promise.all([
           getLocalCheckInReflections(),
           syncEmotionReflectionsFromServer(),
           getLocalExpressReflections(),
           getAvatarActivities(),
+          AsyncStorage.getItem(PROFILE_AVATAR_KEY).catch(() => null),
         ]);
 
         if (active) {
@@ -70,6 +92,9 @@ export default function ProfileScreen() {
           setEmotionReflections(emotionItems);
           setExpressReflections(expressItems);
           setActivities(activityItems);
+          if (avatarOptions.some((option) => option.id === savedAvatarId)) {
+            setAvatarId(savedAvatarId as AvatarId);
+          }
         }
       }
 
@@ -82,6 +107,8 @@ export default function ProfileScreen() {
   );
 
   const totalSaved = checkInReflections.length + emotionReflections.length + expressReflections.length;
+  const activeAvatar = avatarOptions.find((option) => option.id === avatarId) || avatarOptions[0];
+  const profileInitial = (sessionUser?.username || 'N').trim().charAt(0).toUpperCase() || 'N';
   const currentMonthLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }, []);
@@ -133,6 +160,15 @@ export default function ProfileScreen() {
     setIsLoggingOut(false);
   }
 
+  async function selectAvatar(nextAvatarId: AvatarId) {
+    setAvatarId(nextAvatarId);
+    try {
+      await AsyncStorage.setItem(PROFILE_AVATAR_KEY, nextAvatarId);
+    } catch {
+      // Profile customisation should never block the app.
+    }
+  }
+
   return (
     <TabSwipe current="/profile">
       <SafeAreaView style={styles.screen}>
@@ -146,11 +182,41 @@ export default function ProfileScreen() {
           <View style={styles.accountCard}>
             {sessionUser ? (
               <>
-                <View style={styles.accountCopy}>
-                  <Text style={styles.accountLabel}>Account</Text>
-                  <Text style={styles.accountTitle}>Logged in as {sessionUser.username}</Text>
-                  <Text style={styles.accountText}>{sessionUser.email || 'Your account is connected on this phone.'}</Text>
+                <View style={styles.profileHero}>
+                  <View style={[styles.profileAvatar, { backgroundColor: activeAvatar.backgroundColor }]}>
+                    <Text style={[styles.profileAvatarText, { color: activeAvatar.color }]}>{profileInitial}</Text>
+                  </View>
+                  <View style={styles.profileHeroCopy}>
+                    <Text style={styles.accountTitle}>{sessionUser.username}</Text>
+                    <Text style={styles.accountText}>{sessionUser.email || 'Your account is connected on this phone.'}</Text>
+                  </View>
                 </View>
+
+                <View style={styles.avatarPicker}>
+                  <Text style={styles.accountLabel}>Profile colour</Text>
+                  <View style={styles.avatarOptions}>
+                    {avatarOptions.map((option) => {
+                      const selected = option.id === avatarId;
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={selected ? { selected: true } : {}}
+                          accessibilityLabel={`Use ${option.label} profile colour`}
+                          key={option.id}
+                          onPress={() => selectAvatar(option.id)}
+                          style={({ pressed }) => [
+                            styles.avatarOption,
+                            { backgroundColor: option.backgroundColor },
+                            selected && styles.avatarOptionSelected,
+                            pressed && styles.pressed,
+                          ]}>
+                          <Text style={[styles.avatarOptionText, { color: option.color }]}>{profileInitial}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
                 <Pressable
                   disabled={isLoggingOut}
                   onPress={logout}
@@ -187,50 +253,71 @@ export default function ProfileScreen() {
 
           {sessionUser ? (
             <>
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>{totalSaved}</Text>
-                  <Text style={styles.statLabel}>saved reflections</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>{activities.length}</Text>
-                  <Text style={styles.statLabel}>support actions</Text>
-                </View>
+              <View style={styles.profileTabs}>
+                {profileTabs.map((tab) => {
+                  const selected = activeTab === tab.id;
+                  return (
+                    <Pressable
+                      key={tab.id}
+                      onPress={() => setActiveTab(tab.id)}
+                      style={({ pressed }) => [styles.profileTab, selected && styles.profileTabActive, pressed && styles.rowPressed]}>
+                      <Text style={[styles.profileTabText, selected && styles.profileTabTextActive]}>{tab.label}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Feature stats</Text>
-                <View style={styles.featureStatsGrid}>
-                  {featureStats.map((item) => (
-                    <View key={item.name} style={[styles.featureStatCard, { backgroundColor: item.color }]}>
-                      <Text style={styles.featureStatName}>{item.name}</Text>
-                      <View style={styles.featureStatNumbers}>
-                        <View style={styles.featureStatNumberBlock}>
-                          <Text style={styles.featureStatNumber}>{item.used}</Text>
-                          <Text style={styles.featureStatLabel}>used</Text>
-                        </View>
-                        <View style={styles.featureStatNumberBlock}>
-                          <Text style={styles.featureStatNumber}>{item.reflected}</Text>
-                          <Text style={styles.featureStatLabel}>{item.name === 'Toolkit' ? 'completed' : 'saved'}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.featureStatDetail}>{item.detail}</Text>
+              {activeTab === 'overview' ? (
+                <>
+                  <View style={styles.statsGrid}>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statNumber}>{totalSaved}</Text>
+                      <Text style={styles.statLabel}>saved reflections</Text>
                     </View>
-                  ))}
-                </View>
-              </View>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statNumber}>{activities.length}</Text>
+                      <Text style={styles.statLabel}>support actions</Text>
+                    </View>
+                  </View>
 
-              <View style={styles.recapCard}>
-                <View style={styles.recapHeader}>
-                  <Text style={styles.sectionTitle}>Monthly recap</Text>
-                  <Text style={styles.recapMonth}>{currentMonthLabel}</Text>
-                </View>
-                <Text style={styles.recapText}>
-                  Your recap will summarise patterns from saved check-ins, Emotionize reflections, and Express entries.
-                </Text>
-              </View>
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Feature stats</Text>
+                    <View style={styles.featureStatsGrid}>
+                      {featureStats.map((item) => (
+                        <View key={item.name} style={[styles.featureStatCard, { backgroundColor: item.color }]}>
+                          <Text style={styles.featureStatName}>{item.name}</Text>
+                          <View style={styles.featureStatNumbers}>
+                            <View style={styles.featureStatNumberBlock}>
+                              <Text style={styles.featureStatNumber}>{item.used}</Text>
+                              <Text style={styles.featureStatLabel}>used</Text>
+                            </View>
+                            <View style={styles.featureStatNumberBlock}>
+                              <Text style={styles.featureStatNumber}>{item.reflected}</Text>
+                              <Text style={styles.featureStatLabel}>{item.name === 'Toolkit' ? 'completed' : 'saved'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.featureStatDetail}>{item.detail}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              ) : null}
 
-              <View style={styles.section}>
+              {activeTab === 'recap' ? (
+                <View style={styles.recapCard}>
+                  <View style={styles.recapHeader}>
+                    <Text style={styles.sectionTitle}>Monthly recap</Text>
+                    <Text style={styles.recapMonth}>{currentMonthLabel}</Text>
+                  </View>
+                  <Text style={styles.recapText}>
+                    Your recap will summarise patterns from saved check-ins, Emotionize reflections, and Express entries.
+                  </Text>
+                </View>
+              ) : null}
+
+              {activeTab === 'saved' ? (
+                <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Saved reflections</Text>
                 {totalSaved ? (
                   <>
@@ -295,6 +382,7 @@ export default function ProfileScreen() {
                   </View>
                 )}
               </View>
+              ) : null}
             </>
           ) : null}
         </ScrollView>
@@ -340,6 +428,38 @@ const styles = StyleSheet.create({
   accountText: { color: '#5e4f79', fontSize: 15, lineHeight: 22, fontWeight: '600' },
   accountFootnote: { color: '#817690', fontSize: 13, lineHeight: 19, fontWeight: '600', textAlign: 'center' },
   accountActions: { gap: 10 },
+  profileHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  profileAvatar: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+  },
+  profileAvatarText: { fontSize: 34, lineHeight: 38, fontWeight: '900' },
+  profileHeroCopy: { flex: 1, gap: 4 },
+  avatarPicker: { gap: 10 },
+  avatarOptions: { flexDirection: 'row', gap: 10 },
+  avatarOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+  },
+  avatarOptionSelected: {
+    borderColor: '#1f1635',
+    borderWidth: 2,
+  },
+  avatarOptionText: { fontSize: 17, lineHeight: 20, fontWeight: '900' },
   authCtaButton: {
     alignSelf: 'stretch',
     minHeight: 58,
@@ -382,6 +502,26 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: { color: '#8a2440', fontSize: 16, fontWeight: '800' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
+  profileTabs: {
+    minHeight: 48,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(31, 22, 53, 0.08)',
+    padding: 4,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  profileTab: {
+    flex: 1,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  profileTabActive: { backgroundColor: '#e9f0fa' },
+  profileTabText: { color: '#70677f', fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  profileTabTextActive: { color: '#1f1635' },
   statsGrid: { flexDirection: 'row', gap: 12 },
   statCard: {
     flex: 1,
