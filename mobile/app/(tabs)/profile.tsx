@@ -179,23 +179,24 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.screen}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-            <Text style={styles.kicker}>Profile</Text>
-            <Text style={styles.title}>{sessionUser ? 'Profile' : 'Your nomy space'}</Text>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.kicker}>Profile</Text>
+              {sessionUser ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile menu"
+                  onPress={() => setAccountMenuOpen(true)}
+                  style={({ pressed }) => [styles.hamburgerButton, pressed && styles.pressed]}>
+                  <Text style={styles.hamburgerLine}>☰</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {!sessionUser ? <Text style={styles.title}>Your nomy space</Text> : null}
           </View>
 
           <View style={styles.accountCard}>
             {sessionUser ? (
               <>
-                <View style={styles.accountMenuWrap}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Open profile menu"
-                    onPress={() => setAccountMenuOpen((current) => !current)}
-                    style={({ pressed }) => [styles.accountMenuButton, pressed && styles.pressed]}>
-                    <Text style={styles.accountMenuButtonText}>•••</Text>
-                  </Pressable>
-                </View>
-
                 <View style={styles.profileHero}>
                   <View style={styles.profileAvatarWrap}>
                     <View style={[styles.profileAvatar, { backgroundColor: activeAvatar.backgroundColor }]}>
@@ -415,6 +416,16 @@ export default function ProfileScreen() {
               style={styles.floatingAccountMenuScrim}
             />
             <View style={styles.floatingAccountMenu}>
+              <View style={styles.sideMenuHeader}>
+                <Text style={styles.sideMenuTitle}>Profile menu</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close profile menu"
+                  onPress={() => setAccountMenuOpen(false)}
+                  style={({ pressed }) => [styles.sideMenuClose, pressed && styles.pressed]}>
+                  <Text style={styles.sideMenuCloseText}>×</Text>
+                </Pressable>
+              </View>
               <Pressable
                 onPress={() => {
                   setAccountMenuOpen(false);
@@ -443,7 +454,13 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fffaf2' },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 126, gap: 18 },
-  header: { gap: 8, alignItems: 'center', paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
+  header: { gap: 8, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
+  headerTopRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   kicker: {
     color: '#817690',
     fontSize: 13,
@@ -451,6 +468,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
+  hamburgerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5dff0',
+  },
+  hamburgerLine: { color: '#1f1635', fontSize: 24, lineHeight: 27, fontWeight: '700' },
   title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
   subtitle: { color: '#70677f', textAlign: 'center', fontSize: 16, lineHeight: 23, maxWidth: 330 },
   accountCard: {
@@ -482,32 +510,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingRight: 46,
-  },
-  accountMenuWrap: {
-    position: 'absolute',
-    right: 14,
-    top: 14,
-    zIndex: 10,
-    alignItems: 'flex-end',
-  },
-  accountMenuButton: {
-    minWidth: 38,
-    minHeight: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fbf9ff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5dff0',
-  },
-  accountMenuButtonText: {
-    color: '#5e4f79',
-    fontSize: 15,
-    lineHeight: 16,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginTop: -4,
   },
   floatingAccountMenuLayer: {
     ...StyleSheet.absoluteFill,
@@ -516,14 +518,16 @@ const styles = StyleSheet.create({
   },
   floatingAccountMenuScrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(31, 22, 53, 0.18)',
   },
   floatingAccountMenu: {
     position: 'absolute',
-    right: 18,
-    top: 132,
-    width: 190,
-    borderRadius: 18,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 284,
+    borderTopLeftRadius: 28,
+    borderBottomLeftRadius: 28,
     backgroundColor: '#ffffff',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e5dff0',
@@ -533,14 +537,37 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
+    paddingTop: 58,
   },
+  sideMenuHeader: {
+    minHeight: 54,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee8f6',
+  },
+  sideMenuTitle: { color: '#1f1635', fontSize: 18, lineHeight: 23, fontWeight: '800' },
+  sideMenuClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fbf9ff',
+  },
+  sideMenuCloseText: { color: '#5e4f79', fontSize: 24, lineHeight: 26, fontWeight: '500' },
   accountMenuRow: {
-    minHeight: 48,
-    paddingHorizontal: 14,
+    minHeight: 56,
+    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee8f6',
   },
   accountMenuText: { flex: 1, color: '#1f1635', fontSize: 15, lineHeight: 20, fontWeight: '700' },
   accountMenuDangerText: { color: '#8a2440' },
