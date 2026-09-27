@@ -10,6 +10,7 @@ import { apiUrl } from '@/constants/api';
 import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import { getLocalEmotionReflections, type EmotionReflectionEntry } from '@/constants/reflections';
+import { getSessionUser } from '@/constants/session';
 import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
 type FeelingOption = {
@@ -27,7 +28,20 @@ type AiExpressState = {
   tryingToSay: string;
   drafts: ExpressDraft[];
   aiUsed: boolean;
+  flowId: string;
+  usesLeft: number | null;
 };
+
+class ExpressRequestError extends Error {
+  limitReached: boolean;
+  loginRequired: boolean;
+
+  constructor(message: string, options: { limitReached?: boolean; loginRequired?: boolean } = {}) {
+    super(message);
+    this.limitReached = Boolean(options.limitReached);
+    this.loginRequired = Boolean(options.loginRequired);
+  }
+}
 
 const feelingOptions: FeelingOption[] = [
   { name: 'Frustrated', reason: 'because something keeps happening or changing.' },
@@ -123,21 +137,26 @@ function normalizeAiDrafts(value: unknown): ExpressDraft[] {
 
 async function fetchAiExpressResponse(payload: {
   scenario: string;
+  flow_id?: string;
   feeling?: string;
   goal?: string;
   not_wants?: string[];
   tone?: string;
   memory_context?: string;
 }) {
+  const sessionUser = await getSessionUser();
   const response = await fetch(apiUrl('/api/mobile/express-response/'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, user_id: sessionUser?.id }),
   });
   const data = await response.json().catch(() => null);
 
   if (!response.ok || !data?.ok) {
-    throw new Error(data?.error || 'Could not create Express support right now.');
+    throw new ExpressRequestError(data?.error || 'Could not create Express support right now.', {
+      limitReached: Boolean(data?.limit_reached),
+      loginRequired: Boolean(data?.login_required),
+    });
   }
 
   return {
@@ -145,7 +164,13 @@ async function fetchAiExpressResponse(payload: {
     tryingToSay: typeof data.trying_to_say === 'string' ? data.trying_to_say.trim() : '',
     drafts: normalizeAiDrafts(data.drafts),
     aiUsed: Boolean(data.ai_used),
+    flowId: typeof data.flow_id === 'string' ? data.flow_id : payload.flow_id || '',
+    usesLeft: typeof data.uses_left === 'number' ? data.uses_left : null,
   };
+}
+
+function createExpressFlowId() {
+  return `express-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function shortSituation(text: string) {
@@ -282,6 +307,8 @@ export default function ExpressScreen() {
   const [emotionReflections, setEmotionReflections] = useState<EmotionReflectionEntry[]>([]);
   const [notWantsConfirmed, setNotWantsConfirmed] = useState(false);
   const [aiExpress, setAiExpress] = useState<AiExpressState | null>(null);
+  const [aiNotice, setAiNotice] = useState('');
+  const [currentFlowId, setCurrentFlowId] = useState('');
   const [unpackLoading, setUnpackLoading] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
 
@@ -346,7 +373,10 @@ export default function ExpressScreen() {
     }
 
     setUnpacked(true);
+    const nextFlowId = createExpressFlowId();
+    setCurrentFlowId(nextFlowId);
     setAiExpress(null);
+    setAiNotice('');
     setUnpackLoading(true);
     setDraftLoading(false);
     setSelectedFeeling('');
@@ -358,10 +388,15 @@ export default function ExpressScreen() {
     void recordAvatarActivity({ type: 'express_unpack_started', feature: 'express' });
 
     try {
-      const result = await fetchAiExpressResponse({ scenario: situation.trim() });
+      const result = await fetchAiExpressResponse({ scenario: situation.trim(), flow_id: nextFlowId });
       setAiExpress(result);
-    } catch {
+    } catch (error) {
       setAiExpress(null);
+      if (error instanceof ExpressRequestError) {
+        setAiNotice(error.message);
+      } else {
+        setAiNotice('Express AI could not connect right now.');
+      }
     } finally {
       setUnpackLoading(false);
     }
@@ -380,6 +415,7 @@ export default function ExpressScreen() {
       try {
         const result = await fetchAiExpressResponse({
           scenario: situation.trim(),
+          flow_id: aiExpress?.flowId || currentFlowId,
           feeling: chosenFeeling,
           goal: chosenGoal,
           not_wants: selectedNotWants,
@@ -389,10 +425,16 @@ export default function ExpressScreen() {
 
         if (active) {
           setAiExpress(result);
+          setAiNotice('');
         }
-      } catch {
+      } catch (error) {
         if (active) {
           setAiExpress(null);
+          if (error instanceof ExpressRequestError) {
+            setAiNotice(error.message);
+          } else {
+            setAiNotice('Express AI could not connect right now.');
+          }
         }
       } finally {
         if (active) {
@@ -406,7 +448,7 @@ export default function ExpressScreen() {
     return () => {
       active = false;
     };
-  }, [chosenFeeling, chosenGoal, emotionMemory, readyForDrafts, selectedNotWants, selectedTone, situation]);
+  }, [aiExpress?.flowId, chosenFeeling, chosenGoal, currentFlowId, emotionMemory, readyForDrafts, selectedNotWants, selectedTone, situation]);
 
   function toggleNotWant(item: string) {
     setNotWantsConfirmed(false);
@@ -462,6 +504,8 @@ export default function ExpressScreen() {
               onChangeText={(value) => {
                 setSituation(value);
                 setUnpacked(false);
+                setAiNotice('');
+                setCurrentFlowId('');
               }}
               placeholder="Example: My friend keeps cancelling plans and I feel like I’m always the one making the effort..."
               placeholderTextColor="#8d829f"
@@ -510,27 +554,38 @@ export default function ExpressScreen() {
                   <Text style={styles.bubbleText}>nomy is reading what you wrote and looking for a few possible feelings.</Text>
                 </NomyBubble>
               ) : (
-                <View style={styles.chatOptions}>
-                  {displayedFeelingOptions.map((item) => (
-                    <Pressable
-                      key={item.name}
-                      onPress={() => {
-                        setSelectedFeeling(item.name);
-                        setMissingFeeling('');
-                      }}
-                      style={({ pressed }) => [
-                        styles.optionBubble,
-                        selectedFeeling === item.name && !missingFeeling && styles.optionBubbleActive,
-                        pressed && styles.pressed,
-                      ]}>
-                      <View style={styles.optionCopy}>
-                        <Text style={styles.optionTitle}>{item.name}</Text>
-                        <Text style={styles.optionText}>{item.reason}</Text>
-                      </View>
-                      <Text style={styles.checkText}>{selectedFeeling === item.name && !missingFeeling ? '✓' : ''}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <>
+                  {aiNotice ? (
+                    <NomyBubble>
+                      <Text style={styles.bubbleTitle}>{aiNotice}</Text>
+                      <Text style={styles.bubbleText}>
+                        You can still use the non-AI Express flow, or come back when your weekly free Express support resets.
+                      </Text>
+                    </NomyBubble>
+                  ) : null}
+
+                  <View style={styles.chatOptions}>
+                    {displayedFeelingOptions.map((item) => (
+                      <Pressable
+                        key={item.name}
+                        onPress={() => {
+                          setSelectedFeeling(item.name);
+                          setMissingFeeling('');
+                        }}
+                        style={({ pressed }) => [
+                          styles.optionBubble,
+                          selectedFeeling === item.name && !missingFeeling && styles.optionBubbleActive,
+                          pressed && styles.pressed,
+                        ]}>
+                        <View style={styles.optionCopy}>
+                          <Text style={styles.optionTitle}>{item.name}</Text>
+                          <Text style={styles.optionText}>{item.reason}</Text>
+                        </View>
+                        <Text style={styles.checkText}>{selectedFeeling === item.name && !missingFeeling ? '✓' : ''}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
               )}
 
               <NomyBubble>
