@@ -1,13 +1,22 @@
 import json
 import os
+import uuid
+from datetime import timedelta
 
 import httpx
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
+from django.utils import timezone
 from django.utils.text import slugify
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+
+from .models import ExpressAIUsage
+
+
+FREE_EXPRESS_AI_USES_PER_WEEK = 2
 
 
 # -------------------------------
@@ -173,8 +182,68 @@ def extract_response_text(payload):
     return "\n".join(texts).strip()
 
 
+DEFAULT_EXPRESS_FEELINGS = [
+    {"name": "Frustrated", "reason": "because something keeps happening or changing."},
+    {"name": "Hurt", "reason": "because this may be affecting how valued you feel."},
+    {"name": "Worried", "reason": "because you do not want this to become a bigger problem."},
+    {"name": "Unsure", "reason": "because it is hard to know what to say or how it will land."},
+]
+
+
+def build_local_feeling_options(scenario):
+    lowered = scenario.lower()
+
+    if any(word in lowered for word in ["social", "socials", "drinks", "party"]) and any(word in lowered for word in ["work", "colleague", "coworker", "team"]):
+        return [
+            {"name": "Pressured", "reason": "because the social event is connected to work, so saying no may feel less simple."},
+            {"name": "Protective", "reason": "because you may be trying to protect your energy outside work hours."},
+            {"name": "Unsure", "reason": "because you might not know how much explanation people expect."},
+            {"name": "Frustrated", "reason": "because joining in may feel treated like an expectation rather than a choice."},
+        ]
+
+    if any(word in lowered for word in ["cancel", "plans", "effort", "friend"]):
+        return [
+            {"name": "Frustrated", "reason": "because the same situation seems to keep happening."},
+            {"name": "Hurt", "reason": "because you may feel like you are putting in more effort."},
+            {"name": "Unsure", "reason": "because you do not want to sound needy or unfair."},
+            {"name": "Tired", "reason": "because it can take energy to keep holding it in."},
+        ]
+
+    if any(word in lowered for word in ["quiet", "talk", "speak", "what's wrong", "whats wrong", "questions"]):
+        return [
+            {"name": "Overwhelmed", "reason": "because speaking may feel difficult in that moment."},
+            {"name": "Pressured", "reason": "because questions can feel like too much when you need quiet."},
+            {"name": "Misunderstood", "reason": "because being quiet can be read the wrong way."},
+            {"name": "Unsure", "reason": "because you may not know how to explain it before it happens."},
+        ]
+
+    if any(word in lowered for word in ["work", "job", "manager", "colleague", "meeting"]):
+        return [
+            {"name": "Stressed", "reason": "because this involves expectations from other people."},
+            {"name": "Unsure", "reason": "because it may be hard to know what is allowed or appropriate to say."},
+            {"name": "Frustrated", "reason": "because something at work is not working for you right now."},
+            {"name": "Careful", "reason": "because you may be thinking about how your words will be received."},
+        ]
+
+    if any(word in lowered for word in ["family", "partner", "relationship"]):
+        return [
+            {"name": "Hurt", "reason": "because this seems connected to someone important to you."},
+            {"name": "Worried", "reason": "because you may not want this to create distance or conflict."},
+            {"name": "Frustrated", "reason": "because your needs may not be getting understood."},
+            {"name": "Unsure", "reason": "because you might be trying to protect the relationship and yourself."},
+        ]
+
+    return DEFAULT_EXPRESS_FEELINGS
+
+
 def build_local_express_response(scenario):
     lowered = scenario.lower()
+
+    if any(word in lowered for word in ["social", "socials", "drinks", "party"]) and any(word in lowered for word in ["work", "colleague", "coworker", "team"]):
+        return {
+            "direct": "I’m not joining work socials at the moment. I’ll keep work time separate from my personal time.",
+            "relational": "Thanks for inviting me. I’m not joining work socials right now because I need to keep some space outside work, but I appreciate being included.",
+        }
 
     if any(word in lowered for word in ["call", "phone", "text", "message"]):
         return {
@@ -206,6 +275,132 @@ def build_local_express_response(scenario):
     }
 
 
+def build_local_express_payload(scenario, feeling="", goal="", not_wants=None, tone="", memory_context=""):
+    not_wants = not_wants or []
+    response = build_local_express_response(scenario)
+    feeling_text = feeling or "unsure"
+    goal_text = goal or "I don't know yet."
+    not_want_line = ""
+
+    if not_wants:
+        first_not_want = not_wants[0].replace("I don't want to ", "").rstrip(".")
+        not_want_line = f" I also do not want to {first_not_want}."
+
+    topic = scenario.strip().replace("\n", " ")
+    if len(topic) > 120:
+        topic = f"{topic[:117]}..."
+
+    trying_to_say = (
+        f"I want to talk about {topic or 'what happened'}. "
+        f"I think I might be feeling {feeling_text.lower()}, and {goal_text.lower()}"
+    )
+
+    drafts = [
+        {
+            "label": "Softer",
+            "text": (
+                f"I wanted to be honest about something. When {topic}, I feel {feeling_text.lower()}. "
+                f"{goal_text} I care about how this comes across, but I do not want to pretend it is not affecting me.{not_want_line}"
+            ),
+        },
+        {"label": "Direct", "text": response["direct"]},
+        {"label": "More like everyday speech", "text": response["relational"]},
+    ]
+
+    if tone in {"Firm", "Matter-of-fact"}:
+        drafts = [drafts[1], drafts[2], drafts[0]]
+
+    if memory_context:
+        trying_to_say = f"{trying_to_say} I may also need the other person to understand a pattern I've noticed before."
+
+    return {
+        "ok": True,
+        "prompt": scenario,
+        "ai_used": False,
+        "feelings": build_local_feeling_options(scenario),
+        "trying_to_say": trying_to_say,
+        "drafts": drafts,
+        **response,
+    }
+
+
+def safe_list(value):
+    if not isinstance(value, list):
+        return []
+
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def get_mobile_request_user(request, payload):
+    if request.user.is_authenticated:
+        return request.user
+
+    user_id = payload.get("user_id")
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return None
+
+    return User.objects.filter(id=user_id, is_active=True).first()
+
+
+def user_has_unlimited_express_ai(user):
+    return bool(user and (user.is_staff or user.is_superuser))
+
+
+def get_express_ai_limit_state(user):
+    window_start = timezone.now() - timedelta(days=7)
+    used_count = ExpressAIUsage.objects.filter(user=user, used_at__gte=window_start).count()
+
+    return {
+        "used_count": used_count,
+        "uses_left": max(FREE_EXPRESS_AI_USES_PER_WEEK - used_count, 0),
+        "window_start": window_start,
+    }
+
+
+def extract_usage_counts(data):
+    usage = data.get("usage") if isinstance(data, dict) else {}
+    if not isinstance(usage, dict):
+        return 0, 0
+
+    input_tokens = usage.get("input_tokens") or usage.get("prompt_tokens") or 0
+    output_tokens = usage.get("output_tokens") or usage.get("completion_tokens") or 0
+
+    try:
+        input_tokens = int(input_tokens)
+    except (TypeError, ValueError):
+        input_tokens = 0
+
+    try:
+        output_tokens = int(output_tokens)
+    except (TypeError, ValueError):
+        output_tokens = 0
+
+    return input_tokens, output_tokens
+
+
+def save_express_ai_usage(user, flow_id, model, input_tokens, output_tokens):
+    usage, created = ExpressAIUsage.objects.get_or_create(
+        user=user,
+        flow_id=flow_id,
+        defaults={
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        },
+    )
+
+    if not created:
+        usage.model = model
+        usage.request_count += 1
+        usage.input_tokens += input_tokens
+        usage.output_tokens += output_tokens
+        usage.save(update_fields=["model", "request_count", "input_tokens", "output_tokens", "last_used_at"])
+
+    return usage
+
+
 @csrf_exempt
 @require_POST
 def mobile_express_response(request):
@@ -218,19 +413,62 @@ def mobile_express_response(request):
     if not scenario:
         return JsonResponse({"ok": False, "error": "Please write your scenario first."}, status=400)
 
+    feeling = (payload.get("feeling") or "").strip()
+    goal = (payload.get("goal") or "").strip()
+    tone = (payload.get("tone") or "").strip()
+    not_wants = safe_list(payload.get("not_wants"))
+    memory_context = (payload.get("memory_context") or "").strip()
+    flow_id = (payload.get("flow_id") or "").strip()[:80] or uuid.uuid4().hex
+    wants_final_drafts = bool(feeling or goal or tone or not_wants or memory_context)
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        local_response = build_local_express_response(scenario)
-        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+        return JsonResponse(build_local_express_payload(scenario, feeling, goal, not_wants, tone, memory_context))
+
+    user = get_mobile_request_user(request, payload)
+    if user is None:
+        return JsonResponse(
+            {
+                "ok": False,
+                "login_required": True,
+                "error": "Log in or create an account to use Express AI.",
+            },
+            status=401,
+        )
+
+    limit_state = get_express_ai_limit_state(user)
+    existing_flow = ExpressAIUsage.objects.filter(user=user, flow_id=flow_id).first()
+    if not user_has_unlimited_express_ai(user) and existing_flow is None and limit_state["uses_left"] <= 0:
+        return JsonResponse(
+            {
+                "ok": False,
+                "limit_reached": True,
+                "weekly_limit": FREE_EXPRESS_AI_USES_PER_WEEK,
+                "uses_left": 0,
+                "error": "You’ve used this week’s free Express support.",
+            },
+            status=429,
+        )
 
     model = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
     instructions = (
-        "You help autistic adults express themselves clearly and kindly. "
-        "Given a scenario, return strict JSON with exactly two keys: "
-        '"direct" and "relational". '
-        "Each response should be concise, supportive, and natural. "
-        "Avoid therapy disclaimers, avoid overexplaining, and keep each response under 45 words."
+        "You are Nomy, a calm writing support tool for late-diagnosed autistic adults. "
+        "Help the user unpack what they wrote and find words that feel direct, literal, relational, and non-shaming. "
+        "The feeling options must be specific to the user's exact situation, not generic templates. "
+        "Each feeling reason must refer to a concrete detail, tension, or need from what the user wrote. "
+        "Do not diagnose, do not over-explain, do not use therapy disclaimers, and do not tell the user what they must feel. "
+        "Use plain English and keep each draft under 75 words. "
+        "Return strict JSON only."
     )
+    user_context = {
+        "what_happened": scenario,
+        "selected_feeling": feeling,
+        "conversation_goal": goal,
+        "what_the_user_does_not_want_to_say": not_wants,
+        "preferred_tone": tone,
+        "relevant_emotionize_memory": memory_context,
+        "stage": "draft" if wants_final_drafts else "unpack",
+    }
 
     try:
         with httpx.Client(timeout=25.0) as client:
@@ -243,7 +481,13 @@ def mobile_express_response(request):
                 json={
                     "model": model,
                     "instructions": instructions,
-                    "input": f"Scenario: {scenario}\nReturn JSON only.",
+                    "input": (
+                        "Create Express support for this user context.\n"
+                        f"{json.dumps(user_context, ensure_ascii=False)}\n\n"
+                        "Return JSON with: feelings, trying_to_say, drafts, direct, relational. "
+                        "feelings must be 4 short options with name and reason. Do not reuse stock reasons unless they clearly match the user's exact words. "
+                        "drafts must be 3 options. Use labels that fit the preferred tone, such as Softer, Direct, Warm, Firm, or Everyday speech."
+                    ),
                     "text": {
                         "format": {
                             "type": "json_schema",
@@ -252,22 +496,45 @@ def mobile_express_response(request):
                                 "type": "object",
                                 "additionalProperties": False,
                                 "properties": {
+                                    "feelings": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "additionalProperties": False,
+                                            "properties": {
+                                                "name": {"type": "string"},
+                                                "reason": {"type": "string"},
+                                            },
+                                            "required": ["name", "reason"],
+                                        },
+                                    },
+                                    "trying_to_say": {"type": "string"},
+                                    "drafts": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "additionalProperties": False,
+                                            "properties": {
+                                                "label": {"type": "string"},
+                                                "text": {"type": "string"},
+                                            },
+                                            "required": ["label", "text"],
+                                        },
+                                    },
                                     "direct": {"type": "string"},
                                     "relational": {"type": "string"},
                                 },
-                                "required": ["direct", "relational"],
+                                "required": ["feelings", "trying_to_say", "drafts", "direct", "relational"],
                             },
                         }
                     },
                 },
             )
     except httpx.HTTPError:
-        local_response = build_local_express_response(scenario)
-        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+        return JsonResponse(build_local_express_payload(scenario, feeling, goal, not_wants, tone, memory_context))
 
     if response.status_code >= 400:
-        local_response = build_local_express_response(scenario)
-        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+        return JsonResponse(build_local_express_payload(scenario, feeling, goal, not_wants, tone, memory_context))
 
     data = response.json()
     raw_text = extract_response_text(data)
@@ -275,20 +542,44 @@ def mobile_express_response(request):
     try:
         parsed = json.loads(raw_text)
     except json.JSONDecodeError:
-        local_response = build_local_express_response(scenario)
-        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+        return JsonResponse(build_local_express_payload(scenario, feeling, goal, not_wants, tone, memory_context))
 
     direct = (parsed.get("direct") or "").strip()
     relational = (parsed.get("relational") or "").strip()
+    trying_to_say = (parsed.get("trying_to_say") or "").strip()
+    feelings = [
+        {"name": (item.get("name") or "").strip(), "reason": (item.get("reason") or "").strip()}
+        for item in parsed.get("feelings", [])
+        if isinstance(item, dict) and (item.get("name") or "").strip() and (item.get("reason") or "").strip()
+    ]
+    drafts = [
+        {"label": (item.get("label") or "").strip(), "text": (item.get("text") or "").strip()}
+        for item in parsed.get("drafts", [])
+        if isinstance(item, dict) and (item.get("label") or "").strip() and (item.get("text") or "").strip()
+    ]
 
-    if not direct or not relational:
-        local_response = build_local_express_response(scenario)
-        return JsonResponse({"ok": True, "prompt": scenario, **local_response})
+    if not direct or not relational or not trying_to_say or not feelings or not drafts:
+        return JsonResponse(build_local_express_payload(scenario, feeling, goal, not_wants, tone, memory_context))
+
+    input_tokens, output_tokens = extract_usage_counts(data)
+    save_express_ai_usage(user, flow_id, model, input_tokens, output_tokens)
+    refreshed_limit_state = get_express_ai_limit_state(user)
 
     return JsonResponse(
         {
             "ok": True,
             "prompt": scenario,
+            "ai_used": True,
+            "flow_id": flow_id,
+            "weekly_limit": FREE_EXPRESS_AI_USES_PER_WEEK,
+            "uses_left": (
+                FREE_EXPRESS_AI_USES_PER_WEEK
+                if user_has_unlimited_express_ai(user)
+                else refreshed_limit_state["uses_left"]
+            ),
+            "feelings": feelings[:4],
+            "trying_to_say": trying_to_say,
+            "drafts": drafts[:3],
             "direct": direct,
             "relational": relational,
         }
