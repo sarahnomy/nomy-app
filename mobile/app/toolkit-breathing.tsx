@@ -1,33 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import { Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
 import { recordAvatarActivity } from '@/constants/avatar';
-import { goBackOrReplace } from '@/constants/navigation';
+import { goBackToOriginOrReplace } from '@/constants/navigation';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 const breathing = {
   'Box Breathing': [
-    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#cfe0ff' },
-    { label: 'Hold', seconds: 4, scale: 0.75, color: '#cfe0ff' },
-    { label: 'Exhale', seconds: 4, scale: 1, color: '#b9b3ff' },
-    { label: 'Hold', seconds: 4, scale: 1, color: '#b9b3ff' },
+    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#e9c3f1' },
+    { label: 'Hold', seconds: 4, scale: 0.75, color: '#e9c3f1' },
+    { label: 'Exhale', seconds: 4, scale: 1, color: '#dfafe9' },
+    { label: 'Hold', seconds: 4, scale: 1, color: '#dfafe9' },
   ],
   'Triangle Breathing': [
-    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#cfe0ff' },
-    { label: 'Hold', seconds: 4, scale: 0.75, color: '#cfe0ff' },
-    { label: 'Exhale', seconds: 6, scale: 1, color: '#b9b3ff' },
+    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#e9c3f1' },
+    { label: 'Hold', seconds: 4, scale: 0.75, color: '#e9c3f1' },
+    { label: 'Exhale', seconds: 6, scale: 1, color: '#dfafe9' },
   ],
   'Extended Exhale': [
-    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#cfe0ff' },
-    { label: 'Exhale', seconds: 6, scale: 1, color: '#b9b3ff' },
+    { label: 'Inhale', seconds: 4, scale: 0.75, color: '#e9c3f1' },
+    { label: 'Exhale', seconds: 6, scale: 1, color: '#dfafe9' },
   ],
 } as const;
 
 type BreathingName = keyof typeof breathing;
 
 export default function ToolkitBreathingScreen() {
+  const params = useLocalSearchParams<{ tool?: string | string[]; origin?: string | string[] }>();
   const [tool, setTool] = useState<BreathingName>('Box Breathing');
   const [running, setRunning] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -40,8 +43,22 @@ export default function ToolkitBreathingScreen() {
 
   const backgroundColor = bg.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#b9b3ff', '#cfe0ff'],
+    outputRange: ['#dfafe9', '#e9c3f1'],
   });
+
+  useEffect(() => {
+    const requestedTool = normalizeParam(params.tool);
+
+    if (requestedTool && requestedTool in breathing) {
+      setTool(requestedTool as BreathingName);
+      setRunning(false);
+      setCompleted(false);
+      setPhaseIndex(0);
+      setCount(4);
+      scale.setValue(1);
+      bg.setValue(0);
+    }
+  }, [bg, params.tool, scale]);
 
   useEffect(() => {
     if (!running) {
@@ -56,7 +73,7 @@ export default function ToolkitBreathingScreen() {
         useNativeDriver: false,
       }),
       Animated.timing(bg, {
-        toValue: phase.color === '#cfe0ff' ? 1 : 0,
+        toValue: phase.color === '#e9c3f1' ? 1 : 0,
         duration: phase.seconds * 1000,
         useNativeDriver: false,
       }),
@@ -121,7 +138,10 @@ export default function ToolkitBreathingScreen() {
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <BackControl label="Toolkit" onPress={() => goBackOrReplace('/toolkit')} />
+          <BackControl
+            label={params.origin === 'home' ? 'Home' : 'Toolkit'}
+            onPress={() => goBackToOriginOrReplace(params.origin, '/toolkit')}
+          />
 
           <View style={styles.headerCopy}>
             <Text style={styles.stepLabel}>Toolkit</Text>
@@ -175,16 +195,24 @@ export default function ToolkitBreathingScreen() {
   );
 }
 
+function normalizeParam(value?: string | string[]) {
+  if (Array.isArray(value)) {
+    return value[0] ?? '';
+  }
+
+  return value ?? '';
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fde6cf' },
+  screen: { flex: 1, backgroundColor: '#e9c3f1' },
   content: { paddingHorizontal: 18, paddingBottom: 34, gap: 20, alignItems: 'stretch' },
   header: { gap: 14 },
   headerCopy: { alignItems: 'center', gap: 8 },
-  stepLabel: { color: '#7a708c', fontSize: 12, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
-  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: 16, lineHeight: 24, fontWeight: '600', maxWidth: 320 },
+  stepLabel: { color: '#7a708c', fontSize: typeScale.eyebrow, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, fontWeight: '600', maxWidth: 320 },
   section: { gap: 10 },
-  sectionTitle: { color: '#7a708c', fontSize: 12, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
+  sectionTitle: { color: '#7a708c', fontSize: typeScale.eyebrow, fontWeight: '500', letterSpacing: 0.6, textTransform: 'uppercase' },
   toolList: {
     alignSelf: 'stretch',
     borderRadius: 24,
@@ -209,7 +237,7 @@ const styles = StyleSheet.create({
   },
   activeRhythmRow: { backgroundColor: '#faf8ff' },
   rowPressed: { backgroundColor: '#f7f5fb' },
-  rhythmText: { color: '#1f1635', fontSize: 16, fontWeight: '700' },
+  rhythmText: { color: '#1f1635', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   activeRhythmText: { color: '#1f003d' },
   selectedMark: { color: '#1f003d', fontSize: 17, fontWeight: '900' },
   breathWrap: {
@@ -228,10 +256,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
   },
   breathHeader: { alignItems: 'center', gap: 6 },
-  breathTitle: { color: '#1f1635', fontSize: 22, lineHeight: 27, fontWeight: '900', letterSpacing: -0.25 },
-  helper: { color: '#5e4f79', fontSize: 15, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
+  breathTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700', letterSpacing: -0.25 },
+  helper: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600', textAlign: 'center' },
   circle: { width: 230, height: 230, borderRadius: 115, alignItems: 'center', justifyContent: 'center', shadowColor: '#13073f', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
-  breathLabel: { color: '#1f1635', fontSize: 18, fontWeight: '700' },
+  breathLabel: { color: '#1f1635', fontSize: typeScale.sectionTitle, fontWeight: '700' },
   breathNumber: { color: '#1f1635', fontSize: 46, fontWeight: '900', letterSpacing: -0.7 },
   completeCard: {
     alignSelf: 'stretch',
@@ -240,9 +268,9 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
-  completeTitle: { color: '#1f1635', textAlign: 'center', fontSize: 18, lineHeight: 23, fontWeight: '800' },
-  completeText: { color: '#5e4f79', textAlign: 'center', fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  completeTitle: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
+  completeText: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   action: { alignSelf: 'stretch', minHeight: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, backgroundColor: '#1f003d' },
-  actionText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  actionText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   actionPressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
 });

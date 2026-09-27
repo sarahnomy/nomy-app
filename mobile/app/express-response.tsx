@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/nomy-type';
 import { apiUrl } from '@/constants/api';
+import { useAppTheme } from '@/constants/app-theme';
 import { goBackOrReplace } from '@/constants/navigation';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 type ResponseState = {
   direct: string;
@@ -14,6 +16,7 @@ type ResponseState = {
 };
 
 export default function ExpressResponseScreen() {
+  const theme = useAppTheme();
   const params = useLocalSearchParams<{
     prompt?: string | string[];
     direct?: string | string[];
@@ -101,7 +104,7 @@ export default function ExpressResponseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.waveWrap}>
           <View style={styles.wave}>
@@ -208,13 +211,13 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  title: { color: '#1f003d', textAlign: 'center', fontSize: 26, fontWeight: '400', lineHeight: 34 },
+  title: { color: '#1f003d', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle },
   backControl: {
     alignSelf: 'flex-start',
     minHeight: 42,
@@ -229,16 +232,16 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 8, paddingTop: 12 },
   loadingCard: {
     borderRadius: 8,
-    backgroundColor: '#f1f1ff',
+    backgroundColor: '#e1dcf9',
     padding: 18,
     gap: 10,
     alignItems: 'flex-start',
   },
-  loadingTitle: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
-  loadingText: { color: '#5e4f79', fontSize: 15, lineHeight: 23 },
+  loadingTitle: { color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '600' },
+  loadingText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body },
   errorCard: { borderRadius: 8, backgroundColor: '#fff1f4', padding: 18, gap: 10 },
-  errorTitle: { color: '#7a1738', fontSize: 19, fontWeight: '700' },
-  errorText: { color: '#7a1738', fontSize: 15, lineHeight: 23 },
+  errorTitle: { color: '#7a1738', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
+  errorText: { color: '#7a1738', fontSize: typeScale.body, lineHeight: lineScale.body },
   retryButton: {
     minHeight: 48,
     alignSelf: 'flex-start',
@@ -248,7 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  retryButtonText: { color: '#1f003d', fontSize: 15, fontWeight: '700' },
+  retryButtonText: { color: '#1f003d', fontSize: typeScale.body, fontWeight: '700' },
   responses: { gap: 14 },
   responseCard: {
     borderRadius: 8,
@@ -282,11 +285,11 @@ const styles = StyleSheet.create({
   },
   directBadge: { backgroundColor: '#dfd2ff' },
   relationalBadge: { backgroundColor: '#d8efe4' },
-  responseBadgeText: { fontSize: 13, fontWeight: '700' },
+  responseBadgeText: { fontSize: typeScale.helper, fontWeight: '700' },
   directBadgeText: { color: '#43307f' },
   relationalBadgeText: { color: '#24533e' },
-  responseMicrocopy: { color: '#6f6285', fontSize: 13, lineHeight: 18 },
-  responseText: { color: '#1f003d', fontSize: 20, fontWeight: '500', lineHeight: 30 },
+  responseMicrocopy: { color: '#6f6285', fontSize: typeScale.helper, lineHeight: lineScale.helper },
+  responseText: { color: '#1f003d', fontSize: typeScale.sectionTitle, fontWeight: '500', lineHeight: lineScale.sectionTitle },
   responseChevron: { color: '#8d82a4', fontSize: 30, lineHeight: 30, fontWeight: '500' },
   secondaryButton: {
     minHeight: 50,
@@ -297,6 +300,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  secondaryButtonText: { color: '#3a2c6b', fontSize: 16, fontWeight: '600' },
+  secondaryButtonText: { color: '#3a2c6b', fontSize: typeScale.bodyLarge, fontWeight: '600' },
   primaryButtonPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
 });

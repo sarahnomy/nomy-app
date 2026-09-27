@@ -5,18 +5,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import { saveEmotionReflection } from '@/constants/reflections';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 function paramToString(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
 export default function EmotionizeReflectionScreen() {
+  const theme = useAppTheme();
   const params = useLocalSearchParams<{ emotion?: string; category?: string; categoryColor?: string; selectedNotes?: string }>();
   const emotion = useMemo(() => paramToString(params.emotion) || 'this feeling', [params.emotion]);
   const category = useMemo(() => paramToString(params.category) || 'Emotionize', [params.category]);
-  const categoryColor = useMemo(() => paramToString(params.categoryColor) || '#f4f8f3', [params.categoryColor]);
+  const categoryColor = useMemo(() => paramToString(params.categoryColor) || '#e1dcf9', [params.categoryColor]);
   const selectedNotes = useMemo(() => paramToString(params.selectedNotes) || '', [params.selectedNotes]);
   const selectedGroups = useMemo(() => parseSelectedNotes(selectedNotes), [selectedNotes]);
   const [reflection, setReflection] = useState('');
@@ -52,7 +55,7 @@ export default function EmotionizeReflectionScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}>
@@ -138,7 +141,7 @@ function parseSelectedNotes(notes: string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f4f8f3' },
+  screen: { flex: 1, backgroundColor: '#e1dcf9' },
   keyboardView: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 18, paddingBottom: 28, gap: 18 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -164,21 +167,21 @@ const styles = StyleSheet.create({
   },
   iconButtonText: { color: '#332852', fontSize: 34, lineHeight: 36, fontWeight: '400' },
   doneButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 12 },
-  doneButtonText: { color: '#6557c8', fontSize: 17, fontWeight: '700' },
+  doneButtonText: { color: '#6557c8', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   pressed: { opacity: 0.62 },
   header: { alignItems: 'center', gap: 10, paddingTop: 6, paddingBottom: 4 },
   stepLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  kickerPill: { borderRadius: 999, backgroundColor: '#f4f8f3', borderWidth: 1, borderColor: '#dfe9dd', paddingHorizontal: 12, paddingVertical: 7 },
-  kickerText: { color: '#3f5940', fontSize: 13, fontWeight: '700' },
-  title: { color: '#1f1635', fontSize: 31, lineHeight: 37, fontWeight: '700', textAlign: 'center' },
-  subtitle: { color: '#70677f', fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 320 },
+  kickerPill: { borderRadius: 999, backgroundColor: '#e1dcf9', borderWidth: 1, borderColor: '#c9c0ee', paddingHorizontal: 12, paddingVertical: 7 },
+  kickerText: { color: '#4a3f72', fontSize: typeScale.helper, fontWeight: '700' },
+  title: { color: '#1f1635', fontSize: typeScale.pageTitle, lineHeight: lineScale.pageTitle, fontWeight: '700', textAlign: 'center' },
+  subtitle: { color: '#70677f', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, textAlign: 'center', maxWidth: 320 },
   group: {
     borderRadius: 16,
     backgroundColor: '#ffffff',
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -202,45 +205,45 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     marginBottom: 12,
     borderRadius: 16,
-    backgroundColor: '#f4f8f3',
+    backgroundColor: '#e1dcf9',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     padding: 14,
     gap: 8,
   },
   selectedTitle: {
     color: '#5e4f79',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   selectedGroupList: { gap: 12 },
   selectedGroup: { gap: 8 },
-  selectedGroupTitle: { color: '#241b3b', fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  selectedGroupTitle: { color: '#241b3b', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   selectedPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   selectedPill: {
     borderRadius: 999,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
-  selectedPillText: { color: '#241b3b', fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  selectedPillText: { color: '#241b3b', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
   input: {
     minHeight: 280,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#dfe9dd',
+    borderTopColor: '#c9c0ee',
     color: '#241b3b',
-    fontSize: 17,
-    lineHeight: 25,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
     backgroundColor: '#ffffff',
   },
-  status: { color: '#70677f', fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  status: { color: '#70677f', fontSize: typeScale.body, lineHeight: lineScale.body, textAlign: 'center' },
   primaryButton: {
     minHeight: 56,
     borderRadius: 28,
@@ -253,5 +256,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   primaryButtonPressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  primaryButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+  primaryButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
 });

@@ -3,12 +3,14 @@ import { PropsWithChildren, useMemo, useState } from 'react';
 import { Animated, Dimensions, PanResponder, StyleSheet, View } from 'react-native';
 
 import HomeScreen from '@/app/(tabs)';
+import { useAppTheme } from '@/constants/app-theme';
 
 const EDGE_WIDTH = 42;
 const SWIPE_DISTANCE = 96;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export function SwipeToHome({ children }: PropsWithChildren) {
+  const theme = useAppTheme();
   const [translateX] = useState(() => new Animated.Value(0));
 
   const panResponder = useMemo(
@@ -68,13 +70,14 @@ export function SwipeToHome({ children }: PropsWithChildren) {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.screen }]}>
       <View pointerEvents="none" style={styles.homePreview}>
         <HomeScreen />
       </View>
       <Animated.View
         style={[
           styles.swipePage,
+          { backgroundColor: theme.screen },
           {
             shadowOpacity,
             transform: [{ translateX }],
@@ -88,13 +91,12 @@ export function SwipeToHome({ children }: PropsWithChildren) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, overflow: 'hidden', backgroundColor: '#fffaf2' },
+  container: { flex: 1, overflow: 'hidden' },
   homePreview: {
     ...StyleSheet.absoluteFill,
   },
   swipePage: {
     flex: 1,
-    backgroundColor: '#fffaf2',
     shadowColor: '#1f003d',
     shadowRadius: 18,
     shadowOffset: { width: -8, height: 0 },

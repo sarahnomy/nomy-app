@@ -5,16 +5,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 const menu = [
-  { name: 'Morning', meta: 'Check how you are doing today', href: '/dailies-morning' },
-  { name: 'Evening', meta: 'Remember something from today', href: '/dailies-evening' },
-  { name: 'Reflections', meta: 'Saved entries in Profile', href: '/profile' },
-  { name: 'Weekly Overview', meta: 'Monthly recaps in Profile', href: '/profile' },
+  { name: 'Morning', href: '/dailies-morning' },
+  { name: 'Evening', href: '/dailies-evening' },
+  { name: 'Reflections', href: '/profile' },
+  { name: 'Weekly Overview', href: '/profile' },
 ] as const;
 
 export default function DailiesScreen() {
+  const theme = useAppTheme();
   const [eveningPromptVisible, setEveningPromptVisible] = useState(false);
 
   useEffect(() => {
@@ -31,29 +34,28 @@ export default function DailiesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <BackControl label="Support" onPress={() => router.replace('/support')} />
         <View style={styles.waveWrap}>
-          <View style={styles.wave}>
+          <View style={[styles.wave, { backgroundColor: theme.screen }]}>
             <View style={styles.header}>
-              <Text style={styles.stepLabel}>Check-in</Text>
-              <Text style={styles.title}>Which part of your day would you like to support?</Text>
+              <Text style={[styles.stepLabel, { color: theme.subtle }]}>Check-in</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Which part of your day would you like to support?</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.grid}>
+        <View style={[styles.grid, { backgroundColor: '#d5f1f0' }]}>
           {menu.map((item) => (
             <Pressable
               key={item.name}
               onPress={() => openCheckIn(item.href)}
-              style={({ pressed }) => [styles.categoryButton, pressed && styles.rowPressed]}>
+              style={({ pressed }) => [styles.categoryButton, { backgroundColor: '#d5f1f0', borderBottomColor: 'rgba(31, 22, 53, 0.1)' }, pressed && styles.rowPressed]}>
               <View style={styles.categoryCopy}>
-                <Text style={styles.categoryText}>{item.name}</Text>
-                <Text style={styles.categoryMeta}>{item.meta}</Text>
+                <Text style={[styles.categoryText, { color: theme.text }]}>{item.name}</Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
             </Pressable>
           ))}
         </View>
@@ -62,9 +64,9 @@ export default function DailiesScreen() {
         {eveningPromptVisible ? (
           <View pointerEvents="box-none" style={styles.promptOverlay}>
             <Pressable style={styles.promptScrim} onPress={() => setEveningPromptVisible(false)} />
-            <View style={styles.promptSheet}>
-              <Text style={styles.promptTitle}>It might not be evening yet</Text>
-              <Text style={styles.promptText}>
+            <View style={[styles.promptSheet, { backgroundColor: theme.card }]}>
+              <Text style={[styles.promptTitle, { color: theme.text }]}>It might not be evening yet</Text>
+              <Text style={[styles.promptText, { color: theme.muted }]}>
                 Evening check-in is here for later in the day, when you have more of today to look back on. You can come back later, or continue now if this feels helpful.
               </Text>
               <View style={styles.promptActions}>
@@ -88,11 +90,11 @@ export default function DailiesScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fffaeb' },
+  screen: { flex: 1, backgroundColor: '#d5f1f0' },
   content: { paddingHorizontal: 18, paddingBottom: 34, gap: 24 },
   waveWrap: { marginHorizontal: -18 },
   wave: {
-    backgroundColor: '#fffaeb',
+    backgroundColor: '#d5f1f0',
     paddingTop: 8,
     paddingHorizontal: 18,
     paddingBottom: 22,
@@ -101,13 +103,13 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
   backControl: {
     alignSelf: 'flex-start',
     minHeight: 42,
@@ -140,8 +142,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   categoryCopy: { flex: 1, gap: 3 },
-  categoryText: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
-  categoryMeta: { color: '#817690', fontSize: 13, fontWeight: '500' },
+  categoryText: { color: '#1f003d', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600' },
+  categoryMeta: { color: '#817690', fontSize: typeScale.helper, fontWeight: '500' },
   rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
   chevron: { color: '#b7afc5', fontSize: 26, lineHeight: 28, fontWeight: '400' },
   promptOverlay: {
@@ -165,8 +167,8 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
   },
-  promptTitle: { color: '#1f003d', fontSize: 21, lineHeight: 27, fontWeight: '700' },
-  promptText: { color: '#5e4f79', fontSize: 16, lineHeight: 23 },
+  promptTitle: { color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500' },
+  promptText: { color: '#5e4f79', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge },
   promptActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   promptSecondary: {
     flex: 1,
@@ -176,15 +178,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#fffaf2',
   },
-  promptSecondaryText: { color: '#3a2c6b', fontSize: 15, fontWeight: '700' },
+  promptSecondaryText: { color: '#3a2c6b', fontSize: typeScale.body, fontWeight: '700' },
   promptPrimary: {
     flex: 1,
     minHeight: 48,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#564d74',
+    backgroundColor: '#4a3f72',
   },
   promptPrimaryPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  promptPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  promptPrimaryText: { color: '#ffffff', fontSize: typeScale.body, fontWeight: '800' },
 });

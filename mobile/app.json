@@ -9,8 +9,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nomy.app",
-      "buildNumber": "1"
+      "bundleIdentifier": "com.nomyminds.nomy",
+      "buildNumber": "2",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.nomy.app",
@@ -52,7 +55,11 @@
     },
     "extra": {
       "privacyPolicyUrl": "https://nomy-app-fq92.onrender.com/privacy/",
-      "supportEmail": "hello@nomy.app"
+      "supportEmail": "hello@nomy.app",
+      "router": {},
+      "eas": {
+        "projectId": "bfcd3dd7-466c-4078-baea-09e334e7f61f"
+      }
     }
   }
 }

@@ -1,11 +1,13 @@
 import { Tabs, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Animated, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { loadOnboardingState, setDemoSeenValue, setIntroSeenValue } from '@/constants/onboarding';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { controlSize, radius, space } from '@/constants/ui-scale';
 
 const introSlides = [
   {
@@ -20,7 +22,7 @@ const introSlides = [
     body: ['nomy is here to help you reconnect with yourself and understand your experiences, maybe for the first\u00a0time.'],
     features: [
       ['Emotionize', "Understand what you're feeling"],
-      ['Check-in', 'set gentle goals for your day.'],
+      ['Check-in', 'Set gentle goals for your day.'],
       ['Express', 'Find words that feel authentic to you.'],
       ['Toolkit', 'Practical support when you need it'],
     ],
@@ -34,22 +36,22 @@ const introFeatureActions = [
   {
     title: 'Emotionize',
     description: "Understand what you're feeling",
-    color: '#f4f8f3',
+    color: '#e1dcf9',
   },
   {
     title: 'Check-in',
-    description: 'set gentle goals for your day.',
-    color: '#fffaeb',
+    description: 'Set gentle goals for your day.',
+    color: '#d5f1f0',
   },
   {
     title: 'Express',
     description: 'Find words that feel authentic to you.',
-    color: '#e9f0fa',
+    color: '#c2dcff',
   },
   {
     title: 'Toolkit',
     description: 'Practical support when you need it',
-    color: '#fde6cf',
+    color: '#e9c3f1',
   },
 ] as const;
 
@@ -72,16 +74,15 @@ const demoSlides = [
 ] as const;
 
 const demoSuggestedCards = [
-  { title: 'Emotionize', label: "Understand what you're feeling", color: '#f4f8f3' },
-  { title: 'Check-in', label: 'Use morning or evening prompts', color: '#fffaeb' },
-  { title: 'Express', label: 'Find words that feel authentic', color: '#e9f0fa' },
-  { title: 'Toolkit', label: 'Practical support when you need it', color: '#fde6cf' },
+  { title: 'Emotionize', color: '#e1dcf9', icon: 'emotionize' },
+  { title: 'Check-in', color: '#d5f1f0', icon: 'checkin' },
+  { title: 'Express', color: '#c2dcff', icon: 'express' },
+  { title: 'Toolkit', color: '#e9c3f1', icon: 'toolkit' },
 ] as const;
 
 const demoHomeEssentials = [
-  { title: 'Calm my body', label: 'Breathing', color: '#fde6cf' },
-  { title: 'Find words', label: 'Express', color: '#e9f0fa' },
-  { title: 'Evening reflection', label: 'Check-in', color: '#fffaeb' },
+  { title: 'Breathe', color: '#e9c3f1', icon: 'toolkit' },
+  { title: 'Express', color: '#c2dcff', icon: 'express' },
 ] as const;
 
 const featureTabColors = {
@@ -130,7 +131,34 @@ function TabIcon({ color, focused, name }: { color: string; focused: boolean; na
 
 type NomyTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
+type DemoFeatureIconName = 'emotionize' | 'express' | 'toolkit' | 'checkin';
+
+function DemoFeatureIcon({ name }: { name: DemoFeatureIconName }) {
+  if (name === 'emotionize') {
+    return <Image source={require('@/assets/images/emotionize.png')} style={styles.demoFeatureIcon} />;
+  }
+
+  if (name === 'express') {
+    return <Image source={require('@/assets/images/express.png')} style={styles.demoFeatureIconLarge} />;
+  }
+
+  if (name === 'toolkit') {
+    return <Image source={require('@/assets/images/toolkit.png')} style={styles.demoFeatureIconWide} />;
+  }
+
+  return (
+    <View style={styles.demoCheckInIcon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={styles.demoCheckInPencil}>
+        <View style={styles.demoCheckInPencilTip} />
+        <View style={styles.demoCheckInPencilBody} />
+        <View style={styles.demoCheckInPencilEnd} />
+      </View>
+    </View>
+  );
+}
+
 function NomyTabBar({ descriptors, navigation, state }: NomyTabBarProps) {
+  const theme = useAppTheme();
   const [barWidth, setBarWidth] = useState(0);
   const [bubbleX] = useState(() => new Animated.Value(0));
   const routes = state.routes.filter((route) => isTabRouteName(route.name));
@@ -155,7 +183,7 @@ function NomyTabBar({ descriptors, navigation, state }: NomyTabBarProps) {
   return (
     <View
       onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
-      style={styles.customTabBar}>
+      style={[styles.customTabBar, { backgroundColor: theme.tabBar, borderColor: theme.border }]}>
       {tabWidth ? (
         <Animated.View
           pointerEvents="none"
@@ -205,9 +233,9 @@ function NomyTabBar({ descriptors, navigation, state }: NomyTabBarProps) {
             onPress={onPress}
             style={styles.customTabItem}>
             <View style={styles.customTabIcon}>
-              <TabIcon color={focused ? '#1f1635' : '#6f6285'} focused={focused} name={routeName} />
+              <TabIcon color={focused ? theme.text : theme.subtle} focused={focused} name={routeName} />
             </View>
-            <Text style={[styles.customTabLabel, focused && styles.customTabLabelFocused]} numberOfLines={1}>
+            <Text style={[styles.customTabLabel, { color: focused ? theme.text : theme.subtle }, focused && styles.customTabLabelFocused]} numberOfLines={1}>
               {label}
             </Text>
           </Pressable>
@@ -217,7 +245,13 @@ function NomyTabBar({ descriptors, navigation, state }: NomyTabBarProps) {
   );
 }
 
-function DemoPagePreview({ target }: { target: (typeof demoSlides)[number]['target'] }) {
+function DemoPagePreview({
+  target,
+  onContinuePress,
+}: {
+  target: (typeof demoSlides)[number]['target'];
+  onContinuePress?: () => void;
+}) {
   if (target === 'support') {
     return (
       <View style={[styles.demoPreview, styles.demoSupportPreview]}>
@@ -225,14 +259,13 @@ function DemoPagePreview({ target }: { target: (typeof demoSlides)[number]['targ
           <Text style={styles.demoPreviewKicker}>Support</Text>
         </View>
         <Text style={styles.demoPreviewTitle}>What kind of support do you want?</Text>
-        <View style={styles.demoPreviewList}>
+        <View style={styles.demoSupportGrid}>
           {demoSuggestedCards.map((item) => (
-            <View key={item.title} style={[styles.demoPreviewRow, { backgroundColor: item.color }]}>
-              <View style={styles.demoPreviewCopy}>
-                <Text style={styles.demoPreviewRowTitle}>{item.title}</Text>
-                <Text style={styles.demoPreviewRowText}>{item.label}</Text>
+            <View key={item.title} style={[styles.demoSupportTile, { backgroundColor: item.color }]}>
+              <View style={styles.demoSupportIconFrame}>
+                <DemoFeatureIcon name={item.icon} />
               </View>
-              <Text style={styles.demoPreviewChevron}>›</Text>
+              <Text style={styles.demoSupportTileText} numberOfLines={1}>{item.title}</Text>
             </View>
           ))}
         </View>
@@ -281,24 +314,28 @@ function DemoPagePreview({ target }: { target: (typeof demoSlides)[number]['targ
         <Text style={styles.demoPreviewKicker}>Home</Text>
       </View>
       <Text style={styles.demoPreviewTitle}>What would help next?</Text>
-      <View style={styles.demoContinueCard}>
+      <Pressable
+        onPress={onContinuePress}
+        style={({ pressed }) => [styles.demoContinueCard, pressed && styles.demoCardPressed]}>
         <Text style={styles.demoPreviewRowText}>Continue</Text>
         <Text style={styles.demoPreviewRowTitle}>Continue Express</Text>
         <Text style={styles.demoMiniBody}>Pick up where you left off.</Text>
-      </View>
+      </Pressable>
       <Text style={styles.demoSectionLabel}>Your essentials</Text>
       <View style={styles.demoEssentialsGrid}>
         {demoHomeEssentials.map((item) => (
           <View key={item.title} style={[styles.demoEssentialCard, { backgroundColor: item.color }]}>
+            <View style={styles.demoEssentialIconFrame}>
+              <DemoFeatureIcon name={item.icon} />
+            </View>
             <Text style={styles.demoEssentialText}>{item.title}</Text>
-            <Text style={styles.demoEssentialMeta}>{item.label}</Text>
           </View>
         ))}
       </View>
       <View style={styles.demoProfileRow}>
         <View style={styles.demoPreviewCopy}>
-          <Text style={styles.demoPreviewRowTitle}>Often helpful</Text>
-          <Text style={styles.demoPreviewRowText}>Try one breathing round</Text>
+          <Text style={styles.demoPreviewRowTitle}>I need help communicating my needs</Text>
+          <Text style={styles.demoPreviewRowText}>Express</Text>
         </View>
         <Text style={styles.demoPreviewChevron}>›</Text>
       </View>
@@ -404,7 +441,15 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
           <View style={styles.coachLogo} />
         </View>
 
-        <DemoPagePreview target={slide.target} />
+        <DemoPagePreview
+          target={slide.target}
+          onContinuePress={() => {
+            Alert.alert(
+              'Continue',
+              'Continue takes you back to the last thing you were using, so you can pick up where you left off.'
+            );
+          }}
+        />
 
         <View style={styles.coachSpeechBubble}>
           <Text style={styles.demoTitle}>{slide.title}</Text>
@@ -451,7 +496,7 @@ function FirstRunDemo({ onComplete }: { onComplete: () => void }) {
         )}
         <Pressable onPress={next} style={[styles.introNavButton, styles.primaryButton]}>
           <Text style={styles.primaryButtonText}>
-            {isLast ? 'Start using nomy' : 'Next'}
+            {isLast ? 'Start' : 'Next'}
           </Text>
         </Pressable>
       </View>
@@ -509,14 +554,14 @@ export default function TabLayout() {
         tabBarShowLabel: true,
         tabBarStyle: {
           position: 'absolute',
-          left: 14,
-          right: 14,
+          left: space.md,
+          right: space.md,
           bottom: 12,
-          minHeight: 76,
+          minHeight: controlSize.tabBar,
           paddingTop: 7,
           paddingBottom: 8,
           borderTopWidth: 0,
-          borderRadius: 26,
+          borderRadius: radius.xl,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: 'rgba(216, 208, 232, 0.9)',
           backgroundColor: 'rgba(255, 255, 255, 0.92)',
@@ -527,14 +572,14 @@ export default function TabLayout() {
           elevation: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
           lineHeight: 14,
           marginTop: 4,
           textAlign: 'center',
         },
         tabBarItemStyle: {
-          minHeight: 56,
+          minHeight: 52,
           paddingVertical: 1,
           alignItems: 'center',
           justifyContent: 'center',
@@ -611,17 +656,17 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, backgroundColor: '#fffaf2' },
+  loadingScreen: { flex: 1, backgroundColor: '#ffffff' },
   introScreen: {
     flex: 1,
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 20,
     paddingBottom: 22,
     gap: 18,
   },
   demoScreen: {
     flex: 1,
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 20,
     paddingBottom: 22,
     gap: 18,
@@ -688,9 +733,9 @@ const styles = StyleSheet.create({
     gap: 8,
     overflow: 'hidden',
   },
-  demoHomePreview: { backgroundColor: '#f8f5e7' },
-  demoSupportPreview: { backgroundColor: '#fffaf2' },
-  demoProfilePreview: { backgroundColor: '#e9f0fa' },
+  demoHomePreview: { backgroundColor: '#ffffff' },
+  demoSupportPreview: { backgroundColor: '#ffffff' },
+  demoProfilePreview: { backgroundColor: '#ffffff' },
   demoPageHeader: { alignItems: 'center', paddingTop: 1 },
   demoPreviewKicker: {
     color: '#7a708c',
@@ -709,7 +754,89 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: -0.25,
   },
-  demoPreviewList: { flex: 1, gap: 7, justifyContent: 'center' },
+  demoPreviewList: { flex: 1, gap: 7, justifyContent: 'flex-start', paddingTop: 8, paddingBottom: 82 },
+  demoSupportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    paddingTop: 8,
+  },
+  demoSupportTile: {
+    width: '48%',
+    minHeight: 47,
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(31, 22, 53, 0.1)',
+  },
+  demoSupportIconFrame: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoSupportTileText: {
+    color: '#1f1635',
+    fontSize: 9.5,
+    lineHeight: 12,
+    fontWeight: '900',
+    letterSpacing: -0.15,
+    flexShrink: 1,
+  },
+  demoFeatureIcon: {
+    width: 16,
+    height: 16,
+    resizeMode: 'contain',
+  },
+  demoFeatureIconLarge: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+  },
+  demoFeatureIconWide: {
+    width: 20,
+    height: 16,
+    resizeMode: 'contain',
+  },
+  demoCheckInIcon: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoCheckInPencil: {
+    width: 18,
+    height: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    transform: [{ rotate: '-45deg' }],
+  },
+  demoCheckInPencilTip: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 3,
+    borderBottomWidth: 3,
+    borderRightWidth: 5,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: '#050505',
+  },
+  demoCheckInPencilBody: {
+    width: 10,
+    height: 6,
+    backgroundColor: '#050505',
+  },
+  demoCheckInPencilEnd: {
+    width: 4,
+    height: 6,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: '#050505',
+  },
   demoPreviewRow: {
     minHeight: 44,
     borderRadius: 18,
@@ -742,6 +869,7 @@ const styles = StyleSheet.create({
     gap: 3,
     justifyContent: 'center',
   },
+  demoCardPressed: { opacity: 0.72 },
   demoMiniBody: { color: '#817690', fontSize: 9, lineHeight: 12, fontWeight: '600' },
   demoSectionLabel: {
     color: '#6f6285',
@@ -755,19 +883,28 @@ const styles = StyleSheet.create({
   demoEssentialsGrid: { flexDirection: 'row', gap: 6 },
   demoEssentialCard: {
     flex: 1,
-    minHeight: 58,
+    minHeight: 44,
     borderRadius: 18,
     padding: 7,
     borderWidth: 1,
     borderColor: 'rgba(31, 22, 53, 0.1)',
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  demoEssentialIconFrame: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   demoEssentialText: {
     color: '#1f1635',
-    fontSize: 8,
-    lineHeight: 10,
+    fontSize: 9,
+    lineHeight: 11,
     fontWeight: '800',
-    textAlign: 'center',
+    textAlign: 'left',
   },
   demoEssentialMeta: {
     color: '#5e4f79',
@@ -874,7 +1011,7 @@ const styles = StyleSheet.create({
   },
   coachTabHighlight: {
     borderColor: '#1f003d',
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#f8f6fb',
     shadowColor: '#ffffff',
     shadowOpacity: 0.95,
     shadowRadius: 18,

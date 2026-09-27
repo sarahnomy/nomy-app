@@ -5,8 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { goBackOrReplace } from '@/constants/navigation';
 import { saveCheckInReflection } from '@/constants/reflections';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 const nextActions = [
   { label: 'Look at my patterns', href: '/profile' },
@@ -17,6 +19,7 @@ const nextActions = [
 ] as const;
 
 export default function DailiesEveningScreen() {
+  const theme = useAppTheme();
   const [reflection, setReflection] = useState('');
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +55,7 @@ export default function DailiesEveningScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
@@ -119,18 +122,18 @@ export default function DailiesEveningScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fffaeb' },
+  screen: { flex: 1, backgroundColor: '#d5f1f0' },
   keyboardView: { flex: 1 },
   content: { paddingHorizontal: 18, paddingBottom: 140, gap: 18 },
   header: { alignItems: 'center', gap: 8, paddingTop: 4 },
   kicker: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '700', lineHeight: 35 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle },
   card: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -143,17 +146,17 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
   },
-  sectionTitle: { color: '#1f1635', fontSize: 21, lineHeight: 27, fontWeight: '700' },
+  sectionTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500' },
   input: {
     minHeight: 250,
     borderRadius: 20,
     backgroundColor: '#f8f4e7',
     padding: 14,
     color: '#1f1635',
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
   },
-  status: { color: '#6b647d', fontSize: 15, lineHeight: 22, textAlign: 'center' },
+  status: { color: '#6b647d', fontSize: typeScale.body, lineHeight: lineScale.body, textAlign: 'center' },
   saveButton: {
     minHeight: 56,
     borderRadius: 28,
@@ -164,7 +167,7 @@ const styles = StyleSheet.create({
   },
   saveButtonPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
   saveButtonDisabled: { opacity: 0.65 },
-  saveButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+  saveButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   actionList: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#fbf8ed' },
   actionRow: {
     minHeight: 54,
@@ -175,7 +178,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#efe6c7',
   },
-  actionText: { flex: 1, color: '#1f1635', fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  actionText: { flex: 1, color: '#1f1635', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 24, fontWeight: '500' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 });

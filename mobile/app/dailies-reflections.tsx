@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { goBackOrReplace } from '@/constants/navigation';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 import {
   type CheckInReflectionEntry,
   type EmotionReflectionEntry,
@@ -29,6 +31,7 @@ function formatDate(value: string) {
 }
 
 export default function DailiesReflectionsScreen() {
+  const theme = useAppTheme();
   const [checkInReflections, setCheckInReflections] = useState<CheckInReflectionEntry[]>([]);
   const [emotionReflections, setEmotionReflections] = useState<EmotionReflectionEntry[]>([]);
   const [expressReflections, setExpressReflections] = useState<ExpressReflectionEntry[]>([]);
@@ -61,7 +64,7 @@ export default function DailiesReflectionsScreen() {
   const hasReflections = checkInReflections.length > 0 || emotionReflections.length > 0 || expressReflections.length > 0;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <BackControl label="Check-in" onPress={() => goBackOrReplace('/dailies')} />
 
@@ -96,7 +99,7 @@ export default function DailiesReflectionsScreen() {
                 {emotionReflections.map((item) => (
                   <View key={item.id} style={styles.reflectionRow}>
                     <View style={styles.rowHeader}>
-                      <View style={[styles.emotionPill, { backgroundColor: item.categoryColor || '#ebe7ff' }]}>
+                      <View style={[styles.emotionPill, { backgroundColor: item.categoryColor || '#e1dcf9' }]}>
                         <Text style={styles.emotionPillText}>{item.emotion}</Text>
                       </View>
                       <Text style={styles.dateText}>{formatDate(item.date)}</Text>
@@ -156,8 +159,8 @@ const styles = StyleSheet.create({
   backButtonText: { color: '#332852', fontSize: 34, lineHeight: 36, fontWeight: '400' },
   backButtonPressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
   header: { gap: 8, alignItems: 'center', paddingBottom: 4 },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 32, fontWeight: '700', lineHeight: 38 },
-  subtitle: { color: '#70677f', textAlign: 'center', fontSize: 16, lineHeight: 23, maxWidth: 330 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle },
+  subtitle: { color: '#70677f', textAlign: 'center', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, maxWidth: 330 },
   group: {
     borderRadius: 16,
     backgroundColor: '#ffffff',
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -184,16 +187,16 @@ const styles = StyleSheet.create({
     borderTopColor: '#e8e3f0',
   },
   rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  checkInPill: { borderRadius: 999, backgroundColor: '#f1f1ff', paddingHorizontal: 10, paddingVertical: 6 },
-  checkInPillText: { color: '#564d74', fontSize: 13, fontWeight: '700' },
-  emotionPill: { borderRadius: 999, backgroundColor: '#ebe7ff', paddingHorizontal: 10, paddingVertical: 6 },
-  emotionPillText: { color: '#5d50b6', fontSize: 13, fontWeight: '700' },
-  expressPill: { borderRadius: 999, backgroundColor: '#e9f0fa', paddingHorizontal: 10, paddingVertical: 6 },
-  expressPillText: { color: '#31506f', fontSize: 13, fontWeight: '700' },
-  dateText: { color: '#8b829d', fontSize: 13, fontWeight: '600' },
-  contextText: { color: '#70677f', fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  reflectionText: { color: '#241b3b', fontSize: 16, lineHeight: 24 },
-  localText: { color: '#8b829d', fontSize: 13, fontWeight: '600' },
+  checkInPill: { borderRadius: 999, backgroundColor: '#e1dcf9', paddingHorizontal: 10, paddingVertical: 6 },
+  checkInPillText: { color: '#4a3f72', fontSize: typeScale.helper, fontWeight: '700' },
+  emotionPill: { borderRadius: 999, backgroundColor: '#e1dcf9', paddingHorizontal: 10, paddingVertical: 6 },
+  emotionPillText: { color: '#4a3f72', fontSize: typeScale.helper, fontWeight: '700' },
+  expressPill: { borderRadius: 999, backgroundColor: '#c2dcff', paddingHorizontal: 10, paddingVertical: 6 },
+  expressPillText: { color: '#294b78', fontSize: typeScale.helper, fontWeight: '700' },
+  dateText: { color: '#8b829d', fontSize: typeScale.helper, fontWeight: '600' },
+  contextText: { color: '#70677f', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
+  reflectionText: { color: '#241b3b', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge },
+  localText: { color: '#8b829d', fontSize: typeScale.helper, fontWeight: '600' },
   emptyCard: {
     borderRadius: 16,
     backgroundColor: '#ffffff',
@@ -201,6 +204,6 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'center',
   },
-  emptyTitle: { color: '#1f1635', fontSize: 20, fontWeight: '700' },
-  emptyText: { color: '#70677f', fontSize: 16, lineHeight: 23, textAlign: 'center' },
+  emptyTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
+  emptyText: { color: '#70677f', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, textAlign: 'center' },
 });

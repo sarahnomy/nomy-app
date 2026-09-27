@@ -30,6 +30,9 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="register" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="faqs" options={{ headerShown: false }} />
+        <Stack.Screen name="terms" options={{ headerShown: false }} />
+        <Stack.Screen name="accessibility" options={{ headerShown: false }} />
         <Stack.Screen name="support-right-now" options={{ headerShown: false }} />
         <Stack.Screen name="emotionize-reflection" options={{ headerShown: false }} />
         <Stack.Screen name="express-response" options={{ headerShown: false }} />

@@ -1,12 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ComponentProps, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { ComponentProps, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
 import { SwipeToHome } from '@/components/swipe-to-home';
-import { goBackOrReplace } from '@/constants/navigation';
+import { useAppTheme } from '@/constants/app-theme';
+import { goBackToOriginOrReplace } from '@/constants/navigation';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 const puzzles = [
   {
@@ -38,8 +41,8 @@ const matchObjects: { icon: ObjectIconName; label: string; color: string }[] = [
   { icon: 'eco', label: 'leaf', color: '#dcefdc' },
   { icon: 'star', label: 'star', color: '#fff7e7' },
   { icon: 'menu-book', label: 'book', color: '#f1aed6' },
-  { icon: 'home', label: 'house', color: '#f4f8f3' },
-  { icon: 'nights-stay', label: 'moon', color: '#e9f0fa' },
+  { icon: 'home', label: 'house', color: '#e9c3f1' },
+  { icon: 'nights-stay', label: 'moon', color: '#c2dcff' },
   { icon: 'local-florist', label: 'flower', color: '#f4877b' },
 ];
 
@@ -104,6 +107,8 @@ function buildObjectTiles(round: number) {
 }
 
 export default function ToolkitPuzzlesScreen() {
+  const theme = useAppTheme();
+  const params = useLocalSearchParams<{ mode?: string | string[]; origin?: string | string[] }>();
   const [mode, setMode] = useState<PuzzleMode>('menu');
   const [memoryPairingStarted, setMemoryPairingStarted] = useState(false);
   const [memoryPairingRound, setMemoryPairingRound] = useState(0);
@@ -123,6 +128,14 @@ export default function ToolkitPuzzlesScreen() {
   const [letterGuesses, setLetterGuesses] = useState<LetterStepGuess[]>([]);
   const [letterMessage, setLetterMessage] = useState('Write one five-letter word.');
   const letterAnswer = getLetterStepWord(letterRound);
+
+  useEffect(() => {
+    const requestedMode = normalizeParam(params.mode);
+
+    if (requestedMode === 'memory-pairing' || requestedMode === 'match-object' || requestedMode === 'letter-steps') {
+      setMode(requestedMode);
+    }
+  }, [params.mode]);
   const letterComplete = letterGuesses.some((guess) => guess.word === letterAnswer);
   const letterFinished = letterComplete || letterGuesses.length >= 6;
 
@@ -132,7 +145,7 @@ export default function ToolkitPuzzlesScreen() {
       return;
     }
 
-    goBackOrReplace('/toolkit');
+    goBackToOriginOrReplace(params.origin, '/toolkit');
   }
 
   function choosePuzzle(item: (typeof puzzles)[number]) {
@@ -301,9 +314,9 @@ export default function ToolkitPuzzlesScreen() {
 
   return (
     <SwipeToHome>
-    <SafeAreaView style={[styles.screen, mode === 'memory-pairing' && styles.patternScreen]}>
+    <SafeAreaView style={[styles.screen, mode === 'memory-pairing' && styles.patternScreen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <BackControl label={mode === 'menu' ? 'Toolkit' : 'Puzzles'} onPress={handleBack} />
+        <BackControl label={mode === 'menu' && params.origin === 'home' ? 'Home' : mode === 'menu' ? 'Toolkit' : 'Puzzles'} onPress={handleBack} />
 
         <View style={styles.header}>
           <Text style={styles.title}>{screenTitle}</Text>
@@ -509,13 +522,21 @@ export default function ToolkitPuzzlesScreen() {
   );
 }
 
+function normalizeParam(value?: string | string[]) {
+  if (Array.isArray(value)) {
+    return value[0] ?? '';
+  }
+
+  return value ?? '';
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fde6cf' },
-  patternScreen: { backgroundColor: '#fde6cf' },
+  screen: { flex: 1, backgroundColor: '#e9c3f1' },
+  patternScreen: { backgroundColor: '#e9c3f1' },
   content: { paddingHorizontal: 18, paddingBottom: 116, gap: 22 },
   header: { alignItems: 'center', gap: 8, paddingTop: 8 },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
-  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: 17, lineHeight: 26 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge },
   grid: {
     borderRadius: 14,
     backgroundColor: '#ffffff',
@@ -537,9 +558,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   puzzleCopy: { flex: 1, gap: 3 },
-  puzzleTitle: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
-  puzzleMeta: { color: '#817690', fontSize: 13, fontWeight: '500' },
-  puzzleDescription: { color: '#5e4f79', fontSize: 14, lineHeight: 20 },
+  puzzleTitle: { color: '#1f003d', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600' },
+  puzzleMeta: { color: '#817690', fontSize: typeScale.helper, fontWeight: '500' },
+  puzzleDescription: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper },
   rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
   chevron: { color: '#b7afc5', fontSize: 26, lineHeight: 28, fontWeight: '400' },
   patternCard: {
@@ -558,7 +579,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   objectCard: { gap: 22 },
-  patternText: { alignSelf: 'stretch', color: '#1f1635', textAlign: 'center', fontSize: 19, lineHeight: 27, fontWeight: '700' },
+  patternText: { alignSelf: 'stretch', color: '#1f1635', textAlign: 'center', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
   patternGrid: {
     width: 340,
     maxWidth: '100%',
@@ -580,7 +601,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  completeText: { color: '#5e4f79', textAlign: 'center', fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  completeText: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   patternActions: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   patternAction: {
     flex: 1,
@@ -591,7 +612,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffaf2',
     paddingHorizontal: 12,
   },
-  patternActionText: { color: '#1f003d', fontSize: 15, fontWeight: '800' },
+  patternActionText: { color: '#1f003d', fontSize: typeScale.body, fontWeight: '800' },
   patternActionPrimary: {
     flex: 1,
     minHeight: 50,
@@ -601,7 +622,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f003d',
     paddingHorizontal: 12,
   },
-  patternActionPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  patternActionPrimaryText: { color: '#ffffff', fontSize: typeScale.body, fontWeight: '800' },
   disabledAction: { opacity: 0.45 },
   letterCard: {
     borderRadius: 28,
@@ -615,7 +636,7 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
   },
-  letterGuide: { color: '#5e4f79', textAlign: 'center', fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  letterGuide: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   letterBoard: { gap: 8, alignItems: 'center' },
   letterRow: { flexDirection: 'row', gap: 8 },
   letterTile: {
@@ -640,13 +661,13 @@ const styles = StyleSheet.create({
     borderColor: '#ded7ec',
     backgroundColor: '#fbf9ff',
     color: '#1f1635',
-    fontSize: 19,
+    fontSize: typeScale.sectionTitle,
     fontWeight: '800',
     letterSpacing: 6,
     textAlign: 'center',
     paddingHorizontal: 16,
   },
-  letterMessage: { color: '#5e4f79', textAlign: 'center', fontSize: 15, lineHeight: 22, fontWeight: '700' },
+  letterMessage: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   letterKeyboard: { gap: 6, alignItems: 'center' },
   letterKeyboardRow: { flexDirection: 'row', gap: 4, justifyContent: 'center' },
   keyboardKey: {

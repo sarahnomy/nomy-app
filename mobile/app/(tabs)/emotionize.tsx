@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as Speech from 'expo-speech';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import {
   emotionizeCategories,
@@ -14,15 +16,19 @@ import {
   type EmotionizeStoryName,
   type EmotionizeStorySlide,
 } from '@/constants/emotionize-content';
+import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
 const emptyEmotionSelections = (): EmotionizeSelections => ({ looks: [], body: [], afterwards: [] });
 
 export default function EmotionizeScreen() {
+  const theme = useAppTheme();
+  const params = useLocalSearchParams<{ story?: string | string[] }>();
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [story, setStory] = useState<EmotionizeStoryName | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [selections, setSelections] = useState<EmotionizeSelections>(emptyEmotionSelections);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [speechStatus, setSpeechStatus] = useState<'idle' | 'playing' | 'paused'>('idle');
 
   const category = useMemo(
     () => emotionizeCategories.find((item) => item.name === categoryName) || null,
@@ -36,7 +42,40 @@ export default function EmotionizeScreen() {
     void recordAvatarActivity({ type: 'feature_opened', feature: 'emotionize' });
   }, []);
 
+  useEffect(() => {
+    void Speech.stop();
+    setSpeechStatus('idle');
+
+    return () => {
+      void Speech.stop();
+    };
+  }, [slideIndex, story]);
+
+  useEffect(() => {
+    const requestedStory = normalizeParam(params.story);
+
+    if (!requestedStory || !(requestedStory in emotionizeStories)) {
+      return;
+    }
+
+    const matchingCategory = emotionizeCategories.find((item) => item.feelings.includes(requestedStory as never));
+    if (!matchingCategory) {
+      return;
+    }
+
+    setCategoryName(matchingCategory.name);
+    setStory(requestedStory as EmotionizeStoryName);
+    setSlideIndex(0);
+    setSelections(emptyEmotionSelections());
+    void recordAvatarActivity({ type: 'emotionize_story_opened', feature: 'emotionize', label: requestedStory });
+  }, [params.story]);
+
   function openStory(nextStory: EmotionizeStoryName) {
+    const matchingCategory = emotionizeCategories.find((item) => item.feelings.includes(nextStory as never));
+    if (matchingCategory) {
+      setCategoryName(matchingCategory.name);
+    }
+
     void recordAvatarActivity({ type: 'emotionize_story_opened', feature: 'emotionize', label: nextStory });
     setStory(nextStory);
     setSlideIndex(0);
@@ -44,6 +83,7 @@ export default function EmotionizeScreen() {
   }
 
   function closeStory() {
+    void stopReading();
     setStory(null);
     setSlideIndex(0);
     setSelections(emptyEmotionSelections());
@@ -78,7 +118,7 @@ export default function EmotionizeScreen() {
       params: {
         emotion: story,
         category: category?.name || '',
-        categoryColor: '#f4f8f3',
+        categoryColor: '#e1dcf9',
         selectedNotes: formatSelectionsForSave(slides, selections),
       },
     });
@@ -94,9 +134,55 @@ export default function EmotionizeScreen() {
     });
   }
 
+  function startReading() {
+    if (!currentSlide) {
+      return;
+    }
+
+    const textToRead = getSlideSpeechText(currentSlide);
+
+    if (!textToRead) {
+      return;
+    }
+
+    void Speech.stop();
+    setSpeechStatus('playing');
+    Speech.speak(textToRead, {
+      rate: 0.92,
+      pitch: 1,
+      onDone: () => setSpeechStatus('idle'),
+      onStopped: () => setSpeechStatus('idle'),
+      onError: () => setSpeechStatus('idle'),
+    });
+  }
+
+  async function pauseReading() {
+    try {
+      await Speech.pause();
+      setSpeechStatus('paused');
+    } catch {
+      await Speech.stop();
+      setSpeechStatus('idle');
+    }
+  }
+
+  async function resumeReading() {
+    try {
+      await Speech.resume();
+      setSpeechStatus('playing');
+    } catch {
+      startReading();
+    }
+  }
+
+  async function stopReading() {
+    await Speech.stop();
+    setSpeechStatus('idle');
+  }
+
   if (story && currentSlide && category) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
         <View style={styles.storyContent}>
           <Pressable
             onPress={previousStoryStep}
@@ -107,6 +193,31 @@ export default function EmotionizeScreen() {
 
           <View style={styles.storyPill}>
             <Text style={styles.storyPillText}>{currentSlide.note || story}</Text>
+          </View>
+
+          <View style={styles.readToMeBar}>
+            <Text style={styles.readToMeLabel}>Read to me</Text>
+            <View style={styles.readToMeActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={speechStatus === 'paused' ? 'Resume reading' : 'Play reading'}
+                onPress={speechStatus === 'paused' ? resumeReading : startReading}
+                style={({ pressed }) => [styles.readButton, pressed && styles.readButtonPressed]}>
+                <Text style={styles.readButtonText}>{speechStatus === 'paused' ? 'Play' : 'Play'}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Pause reading"
+                disabled={speechStatus !== 'playing'}
+                onPress={pauseReading}
+                style={({ pressed }) => [
+                  styles.readButton,
+                  speechStatus !== 'playing' && styles.readButtonDisabled,
+                  pressed && speechStatus === 'playing' && styles.readButtonPressed,
+                ]}>
+                <Text style={[styles.readButtonText, speechStatus !== 'playing' && styles.readButtonTextDisabled]}>Pause</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.progressRow}>
@@ -137,7 +248,7 @@ export default function EmotionizeScreen() {
 
   if (category) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.choiceHeader}>
             <Pressable
@@ -146,21 +257,21 @@ export default function EmotionizeScreen() {
               <Text style={styles.backChevron}>‹</Text>
               <Text style={styles.backControlText}>Spaces</Text>
             </Pressable>
-            <View style={styles.choiceTitleCard}>
-              <Text style={styles.choiceEyebrow}>{category.name}</Text>
-              <Text style={styles.choiceTitle}>{category.description}</Text>
+            <View style={[styles.choiceTitleCard, { backgroundColor: theme.cardSoft }]}>
+              <Text style={[styles.choiceEyebrow, { color: theme.subtle }]}>{category.name}</Text>
+              <Text style={[styles.choiceTitle, { color: theme.text }]}>{category.description}</Text>
             </View>
           </View>
 
-          <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Available now</Text>
+          <View style={[styles.panel, { backgroundColor: theme.card }]}>
+            <Text style={[styles.panelTitle, { color: theme.subtle }]}>Available now</Text>
             {category.feelings.map((feeling) => (
               <Pressable
                 key={feeling}
                 onPress={() => openStory(feeling as EmotionizeStoryName)}
-                style={({ pressed }) => [styles.feeling, pressed && styles.rowPressed]}>
-                <Text style={styles.feelingText}>{feeling}</Text>
-                <Text style={styles.chevron}>›</Text>
+                style={({ pressed }) => [styles.feeling, { backgroundColor: '#e1dcf9', borderTopColor: 'rgba(31, 22, 53, 0.1)' }, pressed && styles.rowPressed]}>
+                <Text style={[styles.feelingText, { color: theme.text }]}>{feeling}</Text>
+                <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
               </Pressable>
             ))}
           </View>
@@ -208,27 +319,28 @@ export default function EmotionizeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <BackControl label="Support" onPress={() => router.replace('/support')} />
         <View style={styles.waveWrap}>
-          <View style={styles.wave}>
+          <View style={[styles.wave, { backgroundColor: theme.screen }]}>
             <View style={styles.header}>
-              <Text style={styles.title}>Which emotional space would you like to explore?</Text>
+              <Text style={[styles.stepLabel, { color: theme.subtle }]}>Emotionize</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Which emotional space would you like to explore?</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.grid}>
+        <View style={[styles.grid, { backgroundColor: '#e1dcf9' }]}>
           {emotionizeCategories.map((item) => (
             <Pressable
               key={item.name}
               onPress={() => setCategoryName(item.name)}
-              style={({ pressed }) => [styles.categoryButton, pressed && styles.rowPressed]}>
+              style={({ pressed }) => [styles.categoryButton, { backgroundColor: '#e1dcf9', borderBottomColor: 'rgba(31, 22, 53, 0.1)' }, pressed && styles.rowPressed]}>
               <View style={styles.categoryCopy}>
-                <Text style={styles.categoryText}>{item.name}</Text>
+                <Text style={[styles.categoryText, { color: theme.text }]}>{item.name}</Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
             </Pressable>
           ))}
         </View>
@@ -257,6 +369,29 @@ function renderNoteText(note: string) {
         {line}
       </Text>
     ));
+}
+
+function normalizeParam(value?: string | string[]) {
+  if (Array.isArray(value)) {
+    return value[0] ?? '';
+  }
+
+  return value ?? '';
+}
+
+function getSlideSpeechText(slide: EmotionizeStorySlide) {
+  const parts = [slide.note, slide.sub];
+
+  if (slide.options?.length) {
+    parts.push('Options.', ...slide.options);
+  }
+
+  return parts
+    .filter(Boolean)
+    .join('\n\n')
+    .replace(/☐/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function renderSlide(
@@ -369,19 +504,27 @@ function withoutTrailingFullStop(value: string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f4f8f3' },
+  screen: { flex: 1, backgroundColor: '#e1dcf9' },
   content: { paddingHorizontal: 18, paddingBottom: 34, gap: 24 },
-  waveWrap: { marginHorizontal: -18 },
+  waveWrap: { marginHorizontal: -space.screenX },
   wave: {
-    backgroundColor: '#f4f8f3',
-    paddingTop: 8,
-    paddingHorizontal: 18,
-    paddingBottom: 22,
+    backgroundColor: '#e1dcf9',
+    paddingTop: space.sm,
+    paddingHorizontal: space.screenX,
+    paddingBottom: space.xl,
     overflow: 'hidden',
     position: 'relative',
   },
-  header: { alignItems: 'center', gap: 8, paddingTop: 12 },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
+  header: { alignItems: 'center', gap: space.xs, paddingTop: space.md },
+  stepLabel: {
+    color: '#817690',
+    fontSize: typeScale.eyebrow,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
   grid: {
     borderRadius: 14,
     backgroundColor: '#ffffff',
@@ -392,34 +535,33 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   categoryButton: {
-    minHeight: 62,
+    minHeight: controlSize.large,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e8e3f0',
     backgroundColor: '#ffffff',
   },
   categoryCopy: { flex: 1 },
-  categoryText: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
-  categoryMeta: { color: '#817690', fontSize: 14, lineHeight: 19, fontWeight: '500' },
-  choiceHeader: { gap: 14 },
+  categoryText: { color: '#1f003d', fontSize: typeScale.cardTitle, fontWeight: '600' },
+  choiceHeader: { gap: space.md },
   choiceTitleCard: {
     borderRadius: 8,
-    backgroundColor: '#f4f8f3',
+    backgroundColor: '#e1dcf9',
     paddingHorizontal: 8,
     paddingVertical: 12,
-    gap: 8,
+    gap: space.sm,
     alignItems: 'center',
   },
   choiceEyebrow: {
     color: '#5e4f79',
-    fontSize: 14,
+    fontSize: typeScale.helper,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  choiceTitle: { color: '#1f003d', fontSize: 24, lineHeight: 30, fontWeight: '600', textAlign: 'center' },
+  choiceTitle: { color: '#1f003d', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600', textAlign: 'center' },
   panel: {
     borderRadius: 14,
     backgroundColor: '#ffffff',
@@ -431,33 +573,33 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.sm,
   },
   feeling: {
-    minHeight: 60,
+    minHeight: controlSize.large,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: space.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e8e3f0',
     backgroundColor: '#ffffff',
   },
-  feelingText: { flex: 1, color: '#1f003d', fontSize: 18, fontWeight: '600' },
-  chevron: { color: '#b7afc5', fontSize: 26, lineHeight: 28, fontWeight: '400' },
+  feelingText: { flex: 1, color: '#1f003d', fontSize: typeScale.cardTitle, fontWeight: '600' },
+  chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 26, fontWeight: '400' },
   rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
   noteRow: {
-    minHeight: 58,
+    minHeight: controlSize.large,
     borderRadius: 14,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,7 +610,7 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
   },
-  noteRowText: { flex: 1, color: '#1f003d', fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  noteRowText: { flex: 1, color: '#1f003d', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   noteModalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -479,9 +621,9 @@ const styles = StyleSheet.create({
   },
   noteSheet: {
     maxHeight: '78%',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    backgroundColor: '#f4f8f3',
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    backgroundColor: '#e1dcf9',
     paddingHorizontal: 18,
     paddingTop: 10,
     paddingBottom: 24,
@@ -501,11 +643,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  noteSheetTitle: { flex: 1, color: '#1f003d', fontSize: 20, lineHeight: 25, fontWeight: '700' },
+  noteSheetTitle: { flex: 1, color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500' },
   noteCloseButton: {
     minHeight: 36,
     borderRadius: 18,
-    backgroundColor: '#f4f8f3',
+    backgroundColor: '#e1dcf9',
     paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -517,20 +659,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
-    padding: 18,
+    borderColor: '#c9c0ee',
+    padding: space.lg,
   },
   noteParagraph: {
     color: '#1b1230',
-    fontSize: 17,
-    lineHeight: 27,
+    fontSize: typeScale.body,
+    lineHeight: 24,
     fontWeight: '500',
     marginTop: 12,
   },
   noteParagraphFirst: {
     marginTop: 0,
   },
-  storyContent: { flex: 1, paddingHorizontal: 18, paddingBottom: 118, gap: 16 },
+  storyContent: { flex: 1, paddingHorizontal: space.screenX, paddingBottom: 114, gap: space.md },
   backControl: {
     alignSelf: 'flex-start',
     minHeight: 42,
@@ -543,38 +685,68 @@ const styles = StyleSheet.create({
   backControlText: { color: '#3a2c6b', fontSize: 16, fontWeight: '700' },
   backButtonPressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
   storyPill: { alignSelf: 'center', paddingHorizontal: 8, paddingVertical: 6 },
-  storyPillText: { color: '#22163c', fontSize: 24, lineHeight: 30, fontWeight: '600', textAlign: 'center' },
+  storyPillText: { color: '#22163c', fontSize: typeScale.pageTitle, lineHeight: lineScale.pageTitle, fontWeight: '600', textAlign: 'center' },
+  readToMeBar: {
+    minHeight: 48,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#c9c0ee',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  readToMeLabel: { color: '#3f335a', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
+  readToMeActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  readButton: {
+    minHeight: 32,
+    minWidth: 68,
+    borderRadius: 16,
+    backgroundColor: '#e1dcf9',
+    borderWidth: 1,
+    borderColor: '#c9c0ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  readButtonPressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
+  readButtonDisabled: { opacity: 0.42 },
+  readButtonText: { color: '#241b3b', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
+  readButtonTextDisabled: { color: '#8a819d' },
   progressRow: { flexDirection: 'row', gap: 8 },
-  progressBar: { flex: 1, height: 6, borderRadius: 8, backgroundColor: '#dfe9dd', overflow: 'hidden' },
+  progressBar: { flex: 1, height: 6, borderRadius: 8, backgroundColor: '#c9c0ee', overflow: 'hidden' },
   progressFill: { height: '100%', width: '0%', backgroundColor: '#22163c' },
   progressFillActive: { width: '100%' },
   slide: { flex: 1 },
-  slideContent: { paddingVertical: 16 },
+  slideContent: { paddingVertical: space.lg },
   slideCard: {
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
-    padding: 18,
+    borderColor: '#c9c0ee',
+    padding: space.lg,
   },
-  slideText: { color: '#1b1230', fontSize: 17, lineHeight: 28 },
-  optionWrap: { gap: 16 },
-  optionList: { gap: 10 },
+  slideText: { color: '#1b1230', fontSize: typeScale.body, lineHeight: 25 },
+  optionWrap: { gap: space.lg },
+  optionList: { gap: space.sm },
   checkboxRow: {
-    minHeight: 54,
+    minHeight: controlSize.regular,
     borderRadius: 14,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderColor: '#c9c0ee',
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
   checkboxRowSelected: {
     borderColor: '#1f003d',
-    backgroundColor: '#f4f8f3',
+    backgroundColor: '#e1dcf9',
   },
   selectionMark: {
     width: 24,
@@ -587,42 +759,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f003d',
   },
   selectionTick: { color: '#ffffff', fontSize: 14, lineHeight: 16, fontWeight: '900' },
-  checkboxText: { flex: 1, color: '#241b3b', fontSize: 16, lineHeight: 22, fontWeight: '600' },
-  patternWrap: { gap: 18 },
-  patternTextWrap: { gap: 14 },
-  patternHeading: { color: '#1f1635', fontSize: 23, lineHeight: 29, fontWeight: '700', textAlign: 'center' },
-  patternParagraphList: { gap: 10 },
+  checkboxText: { flex: 1, color: '#241b3b', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
+  patternWrap: { gap: space.lg },
+  patternTextWrap: { gap: space.md },
+  patternHeading: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500', textAlign: 'center' },
+  patternParagraphList: { gap: space.sm },
   patternParagraphCard: {
     borderRadius: 16,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     paddingHorizontal: 15,
     paddingVertical: 13,
   },
-  patternParagraphText: { color: '#241b3b', fontSize: 16, lineHeight: 24, fontWeight: '500' },
+  patternParagraphText: { color: '#241b3b', fontSize: typeScale.body, lineHeight: lineScale.bodyLarge, fontWeight: '500' },
   selectedSummary: {
     borderRadius: 16,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     padding: 14,
     gap: 12,
   },
-  selectedSummaryTitle: { color: '#5e4f79', fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  selectedSummaryTitle: { color: '#5e4f79', fontSize: typeScale.eyebrow, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
   selectedGroupList: { gap: 12 },
   selectedGroup: { gap: 8 },
   selectedGroupTitle: { color: '#241b3b', fontSize: 15, lineHeight: 20, fontWeight: '700' },
   selectedPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   selectedPill: {
     borderRadius: 999,
-    backgroundColor: '#f4f8f3',
+    backgroundColor: '#e1dcf9',
     borderWidth: 1,
-    borderColor: '#dfe9dd',
+    borderColor: '#c9c0ee',
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
-  selectedPillText: { color: '#241b3b', fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  selectedPillText: { color: '#241b3b', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
   storyActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   storyNavButton: { flex: 1, flexBasis: 0, minWidth: 0 },
   secondaryStepButton: {
@@ -636,9 +808,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   secondaryStepButtonPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
-  secondaryStepButtonText: { color: '#3a2c6b', fontSize: 16, fontWeight: '700' },
+  secondaryStepButtonText: { color: '#3a2c6b', fontSize: typeScale.body, fontWeight: '700' },
   nextButton: { minHeight: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1f003d' },
-  nextButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '700' },
+  nextButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   pressedPrimary: { opacity: 0.82, transform: [{ scale: 0.99 }] },
   footer: { color: '#3f335a', textAlign: 'center', fontSize: 14 },
 });

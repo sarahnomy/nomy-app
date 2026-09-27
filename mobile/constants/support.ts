@@ -6,7 +6,7 @@ export const supportOptions = [
     action: 'Open Emotionize',
     href: '/emotionize',
     feature: 'emotionize',
-    color: '#fde6cf',
+    color: '#e1dcf9',
   },
   {
     label: 'Heavy',
@@ -15,7 +15,7 @@ export const supportOptions = [
     action: 'Open Check-in',
     href: '/dailies',
     feature: 'dailies',
-    color: '#e9f0fa',
+    color: '#c2dcff',
   },
   {
     label: 'Too much',
@@ -24,7 +24,7 @@ export const supportOptions = [
     action: 'Open Toolkit',
     href: '/toolkit',
     feature: 'toolkit',
-    color: '#f4f8f3',
+    color: '#e9c3f1',
   },
   {
     label: 'Need words',

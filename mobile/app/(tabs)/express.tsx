@@ -1,15 +1,35 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
+import { apiUrl } from '@/constants/api';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import { getLocalEmotionReflections, type EmotionReflectionEntry } from '@/constants/reflections';
+import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
-const feelingOptions = [
+type FeelingOption = {
+  name: string;
+  reason: string;
+};
+
+type ExpressDraft = {
+  label: string;
+  text: string;
+};
+
+type AiExpressState = {
+  feelings: FeelingOption[];
+  tryingToSay: string;
+  drafts: ExpressDraft[];
+  aiUsed: boolean;
+};
+
+const feelingOptions: FeelingOption[] = [
   { name: 'Frustrated', reason: 'because something keeps happening or changing.' },
   { name: 'Hurt', reason: 'because this may be affecting how valued you feel.' },
   { name: 'Worried', reason: 'because you do not want this to become a bigger problem.' },
@@ -73,6 +93,61 @@ type EmotionMemory = {
   draft: string;
 };
 
+function normalizeAiFeelings(value: unknown): FeelingOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => ({
+      name: typeof item?.name === 'string' ? item.name.trim() : '',
+      reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
+    }))
+    .filter((item) => item.name && item.reason)
+    .slice(0, 4);
+}
+
+function normalizeAiDrafts(value: unknown): ExpressDraft[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => ({
+      label: typeof item?.label === 'string' ? item.label.trim() : '',
+      text: typeof item?.text === 'string' ? item.text.trim() : '',
+    }))
+    .filter((item) => item.label && item.text)
+    .slice(0, 3);
+}
+
+async function fetchAiExpressResponse(payload: {
+  scenario: string;
+  feeling?: string;
+  goal?: string;
+  not_wants?: string[];
+  tone?: string;
+  memory_context?: string;
+}) {
+  const response = await fetch(apiUrl('/api/mobile/express-response/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.error || 'Could not create Express support right now.');
+  }
+
+  return {
+    feelings: normalizeAiFeelings(data.feelings),
+    tryingToSay: typeof data.trying_to_say === 'string' ? data.trying_to_say.trim() : '',
+    drafts: normalizeAiDrafts(data.drafts),
+    aiUsed: Boolean(data.ai_used),
+  };
+}
+
 function shortSituation(text: string) {
   const trimmed = text.trim().replace(/\s+/g, ' ');
   if (!trimmed) {
@@ -130,15 +205,53 @@ function includesAny(text: string, words: string[]) {
   return words.some((word) => lower.includes(word));
 }
 
+function emotionStatePhrase(emotion: string) {
+  const lower = emotion.toLowerCase();
+
+  if (lower === 'excitement') {
+    return 'excited';
+  }
+
+  if (lower === 'overwhelm') {
+    return 'overwhelmed';
+  }
+
+  return `feeling ${lower}`;
+}
+
 function buildEmotionMemory(reflections: EmotionReflectionEntry[], situation: string): EmotionMemory | null {
   const lowerSituation = situation.toLowerCase();
+  const situationFitsOverwhelmMemory = includesAny(lowerSituation, [
+    'overwhelmed',
+    'overwhelm',
+    'quiet',
+    'can’t talk',
+    "can't talk",
+    'cannot talk',
+    'hard to talk',
+    'struggle to talk',
+    'struggle to speak',
+    'what’s wrong',
+    "what's wrong",
+    'whats wrong',
+    'too many questions',
+    'stop asking questions',
+    'need space',
+    'need quiet',
+    'shutdown',
+    'shut down',
+  ]);
+
+  if (!situationFitsOverwhelmMemory) {
+    return null;
+  }
+
   const relevantReflections = reflections.filter((entry) => {
     const text = `${entry.emotion} ${entry.reflection}`.toLowerCase();
     const isOverwhelmLike = entry.emotion.toLowerCase() === 'overwhelm'
-      || includesAny(text, ['overwhelm', 'quiet', 'alone', 'speak', 'talk', 'questions', 'shutdown']);
-    const situationFits = includesAny(lowerSituation, ['quiet', 'talk', 'speak', "what's wrong", 'whats wrong', 'partner', 'work', 'home']);
+      || includesAny(text, ['overwhelm', 'overwhelmed', 'shutdown', 'shut down', 'need quiet', 'need space']);
 
-    return isOverwhelmLike && situationFits;
+    return isOverwhelmLike;
   });
 
   if (!relevantReflections.length) {
@@ -147,15 +260,18 @@ function buildEmotionMemory(reflections: EmotionReflectionEntry[], situation: st
 
   const first = relevantReflections[0];
   const emotion = first.emotion || 'Overwhelm';
+  const statePhrase = emotionStatePhrase(emotion);
 
   return {
     emotion,
-    message: `I remember you've told me that when you're ${emotion.toLowerCase()}, talking can become difficult.\n\nIt sounds like you might want to explain that before it happens, so the other person does not have to guess what's going on.\n\nWould you like help saying that?`,
+    message: `I remember you've told me that when you're ${statePhrase}, talking can become difficult.\n\nIt sounds like you might want to explain that before it happens, so the other person does not have to guess what's going on.\n\nWould you like help saying that?`,
     draft: "When I get home and I'm quiet, it usually means I've had a lot to process. I'm not angry with you and I don't want you to fix anything. I just need some quiet before I can talk.",
   };
 }
 
 export default function ExpressScreen() {
+  const theme = useAppTheme();
+  const scrollViewRef = useRef<ScrollView | null>(null);
   const [situation, setSituation] = useState('');
   const [unpacked, setUnpacked] = useState(false);
   const [selectedFeeling, setSelectedFeeling] = useState('');
@@ -165,6 +281,9 @@ export default function ExpressScreen() {
   const [selectedTone, setSelectedTone] = useState<ToneName | ''>('');
   const [emotionReflections, setEmotionReflections] = useState<EmotionReflectionEntry[]>([]);
   const [notWantsConfirmed, setNotWantsConfirmed] = useState(false);
+  const [aiExpress, setAiExpress] = useState<AiExpressState | null>(null);
+  const [unpackLoading, setUnpackLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
 
   useEffect(() => {
     void recordAvatarActivity({ type: 'feature_opened', feature: 'express' });
@@ -184,6 +303,7 @@ export default function ExpressScreen() {
     [emotionReflections, situation, unpacked],
   );
   const readyForDrafts = Boolean(situation.trim() && unpacked && hasFeelingAnswer && selectedGoal && notWantsConfirmed && selectedTone);
+  const displayedFeelingOptions = aiExpress?.feelings.length ? aiExpress.feelings : feelingOptions;
   const tryingToSay = useMemo(
     () => buildTryingToSay(situation, chosenFeeling, chosenGoal),
     [chosenFeeling, chosenGoal, situation],
@@ -192,13 +312,43 @@ export default function ExpressScreen() {
     () => buildDrafts(situation, chosenFeeling, chosenGoal, selectedNotWants, selectedTone, emotionMemory),
     [chosenFeeling, chosenGoal, emotionMemory, selectedNotWants, selectedTone, situation],
   );
+  const displayedTryingToSay = aiExpress?.tryingToSay || tryingToSay;
+  const displayedDrafts = aiExpress?.drafts.length ? aiExpress.drafts : drafts;
 
-  function unpackSituation() {
+  function scrollToConversationEnd() {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 90);
+    });
+  }
+
+  useEffect(() => {
+    if (unpacked) {
+      scrollToConversationEnd();
+    }
+  }, [
+    aiExpress,
+    draftLoading,
+    missingFeeling,
+    notWantsConfirmed,
+    selectedFeeling,
+    selectedGoal,
+    selectedNotWants,
+    selectedTone,
+    unpackLoading,
+    unpacked,
+  ]);
+
+  async function unpackSituation() {
     if (!situation.trim()) {
       return;
     }
 
     setUnpacked(true);
+    setAiExpress(null);
+    setUnpackLoading(true);
+    setDraftLoading(false);
     setSelectedFeeling('');
     setMissingFeeling('');
     setSelectedGoal('');
@@ -206,7 +356,57 @@ export default function ExpressScreen() {
     setSelectedTone('');
     setNotWantsConfirmed(false);
     void recordAvatarActivity({ type: 'express_unpack_started', feature: 'express' });
+
+    try {
+      const result = await fetchAiExpressResponse({ scenario: situation.trim() });
+      setAiExpress(result);
+    } catch {
+      setAiExpress(null);
+    } finally {
+      setUnpackLoading(false);
+    }
   }
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDrafts() {
+      if (!readyForDrafts) {
+        return;
+      }
+
+      setDraftLoading(true);
+
+      try {
+        const result = await fetchAiExpressResponse({
+          scenario: situation.trim(),
+          feeling: chosenFeeling,
+          goal: chosenGoal,
+          not_wants: selectedNotWants,
+          tone: selectedTone,
+          memory_context: emotionMemory ? `${emotionMemory.message}\n\nSuggested draft: ${emotionMemory.draft}` : '',
+        });
+
+        if (active) {
+          setAiExpress(result);
+        }
+      } catch {
+        if (active) {
+          setAiExpress(null);
+        }
+      } finally {
+        if (active) {
+          setDraftLoading(false);
+        }
+      }
+    }
+
+    void loadDrafts();
+
+    return () => {
+      active = false;
+    };
+  }, [chosenFeeling, chosenGoal, emotionMemory, readyForDrafts, selectedNotWants, selectedTone, situation]);
 
   function toggleNotWant(item: string) {
     setNotWantsConfirmed(false);
@@ -228,25 +428,31 @@ export default function ExpressScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
         style={styles.keyboardView}>
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.content}
+          onContentSizeChange={() => {
+            if (unpacked) {
+              scrollToConversationEnd();
+            }
+          }}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled">
-          <View style={styles.topRow}>
-            <BackControl label="Support" onPress={() => router.replace('/support')} />
-            <Text style={styles.topTitle}>Express</Text>
-            <View style={styles.topSpacer} />
+          <BackControl label="Support" onPress={() => router.replace('/support')} />
+
+          <View style={styles.header}>
+            <Text style={[styles.stepLabel, { color: theme.subtle }]}>Express</Text>
+            <Text style={[styles.title, { color: theme.text }]}>What happened?</Text>
           </View>
 
           <View style={styles.chatThread}>
             <NomyBubble>
-              <Text style={styles.bubbleTitle}>What happened?</Text>
               <Text style={styles.bubbleText}>Write it however it comes out. It does not need to be tidy.</Text>
             </NomyBubble>
 
@@ -267,7 +473,7 @@ export default function ExpressScreen() {
               onPress={unpackSituation}
               disabled={!situation.trim()}
               style={({ pressed }) => [styles.sendButton, !situation.trim() && styles.disabledButton, pressed && styles.pressed]}>
-              <Text style={styles.sendButtonText}>Send to Nomy</Text>
+              <Text style={styles.sendButtonText}>Send to nomy</Text>
             </Pressable>
             </View>
 
@@ -299,8 +505,13 @@ export default function ExpressScreen() {
                 <Text style={styles.bubbleText}>You do not have to choose just one. Which feels closest?</Text>
               </NomyBubble>
 
-              <View style={styles.chatOptions}>
-                  {feelingOptions.map((item) => (
+              {unpackLoading ? (
+                <NomyBubble>
+                  <Text style={styles.bubbleText}>nomy is reading what you wrote and looking for a few possible feelings.</Text>
+                </NomyBubble>
+              ) : (
+                <View style={styles.chatOptions}>
+                  {displayedFeelingOptions.map((item) => (
                     <Pressable
                       key={item.name}
                       onPress={() => {
@@ -319,7 +530,8 @@ export default function ExpressScreen() {
                       <Text style={styles.checkText}>{selectedFeeling === item.name && !missingFeeling ? '✓' : ''}</Text>
                     </Pressable>
                   ))}
-              </View>
+                </View>
+              )}
 
               <NomyBubble>
                 <Text style={styles.bubbleText}>None of these? Tell me what I’m missing.</Text>
@@ -448,15 +660,17 @@ export default function ExpressScreen() {
                 <>
                   <NomyBubble>
                     <Text style={styles.bubbleTitle}>Here’s what you seem to be trying to say:</Text>
-                    <Text style={styles.draftText}>{tryingToSay}</Text>
+                    <Text style={styles.draftText}>{displayedTryingToSay}</Text>
                   </NomyBubble>
 
                   <NomyBubble>
-                    <Text style={styles.bubbleText}>You could say it like this:</Text>
+                    <Text style={styles.bubbleText}>
+                      {draftLoading ? 'nomy is shaping a few options from your answers.' : 'You could say it like this:'}
+                    </Text>
                   </NomyBubble>
 
                   <View style={styles.draftList}>
-                    {drafts.map((item) => (
+                    {displayedDrafts.map((item) => (
                       <Pressable
                         accessibilityRole="button"
                         key={item.label}
@@ -499,29 +713,36 @@ function UserBubble({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#e9f0fa' },
+  screen: { flex: 1, backgroundColor: '#c2dcff' },
   keyboardView: { flex: 1 },
-  content: { paddingHorizontal: 14, paddingBottom: 140, gap: 16 },
-  topRow: {
-    minHeight: 50,
-    flexDirection: 'row',
+  content: { paddingHorizontal: space.screenX, paddingBottom: 132, gap: space.md },
+  header: {
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: space.xs,
+    paddingTop: space.md,
+    paddingBottom: space.sm,
   },
-  topTitle: { color: '#1f1635', fontSize: 18, lineHeight: 24, fontWeight: '800' },
-  topSpacer: { width: 76 },
-  chatThread: { gap: 12 },
+  stepLabel: {
+    color: '#817690',
+    fontSize: typeScale.eyebrow,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  chatThread: { gap: space.md },
   nomyBubble: {
     alignSelf: 'flex-start',
     maxWidth: '88%',
-    borderRadius: 24,
+    borderRadius: radius.lg,
     borderTopLeftRadius: 9,
     backgroundColor: '#ffffff',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 7,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    gap: space.xs,
     shadowColor: '#110c28',
     shadowOpacity: 0.04,
     shadowRadius: 12,
@@ -530,41 +751,41 @@ const styles = StyleSheet.create({
   userBubble: {
     alignSelf: 'flex-end',
     maxWidth: '86%',
-    borderRadius: 24,
+    borderRadius: radius.lg,
     borderTopRightRadius: 9,
     backgroundColor: '#1f003d',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
   },
-  userBubbleText: { color: '#ffffff', fontSize: 16, lineHeight: 23, fontWeight: '600' },
-  bubbleTitle: { color: '#1f1635', fontSize: 18, lineHeight: 24, fontWeight: '800' },
-  bubbleText: { color: '#5e4f79', fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  userBubbleText: { color: '#ffffff', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
+  bubbleTitle: { color: '#1f1635', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, fontWeight: '700' },
+  bubbleText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   inputBubble: {
     alignSelf: 'stretch',
-    borderRadius: 26,
+    borderRadius: radius.xl,
     backgroundColor: 'rgba(255, 255, 255, 0.78)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
-    padding: 12,
-    gap: 10,
+    padding: space.md,
+    gap: space.sm,
   },
   situationInput: {
-    minHeight: 150,
-    borderRadius: 22,
+    minHeight: 132,
+    borderRadius: radius.lg,
     backgroundColor: '#ffffff',
     color: '#1f1635',
-    fontSize: 17,
-    lineHeight: 24,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
   },
   shortInput: {
-    minHeight: 54,
-    borderRadius: 22,
+    minHeight: controlSize.regular,
+    borderRadius: radius.lg,
     backgroundColor: '#ffffff',
     color: '#1f1635',
-    fontSize: 16,
-    paddingHorizontal: 14,
+    fontSize: typeScale.body,
+    paddingHorizontal: space.md,
   },
   sendButton: {
     alignSelf: 'flex-end',
@@ -573,19 +794,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1f003d',
-    paddingHorizontal: 18,
+    paddingHorizontal: space.lg,
   },
-  sendButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  sendButtonText: { color: '#ffffff', fontSize: typeScale.body, fontWeight: '800' },
   disabledButton: { opacity: 0.45 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
-  chatOptions: { gap: 8, alignSelf: 'stretch' },
+  chatOptions: { gap: space.sm, alignSelf: 'stretch' },
   optionBubble: {
-    minHeight: 58,
+    minHeight: controlSize.large,
     alignSelf: 'stretch',
-    backgroundColor: 'rgba(255, 255, 255, 0.86)',
-    borderRadius: 19,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    backgroundColor: '#c2dcff',
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -593,18 +814,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(31, 22, 53, 0.08)',
   },
   optionBubbleActive: {
-    backgroundColor: '#ffffff',
-    borderColor: '#31506f',
-    shadowColor: '#31506f',
+    backgroundColor: '#c2dcff',
+    borderColor: '#294b78',
+    shadowColor: '#294b78',
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
   optionCopy: { flex: 1, gap: 5 },
-  optionTitle: { color: '#1f1635', fontSize: 17, lineHeight: 22, fontWeight: '800' },
-  optionText: { color: '#5e4f79', fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  singleOptionText: { flex: 1, color: '#1f1635', fontSize: 16, lineHeight: 22, fontWeight: '700' },
-  checkText: { width: 24, color: '#1f003d', fontSize: 18, lineHeight: 22, fontWeight: '900', textAlign: 'center' },
+  optionTitle: { color: '#1f1635', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '700' },
+  optionText: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
+  singleOptionText: { flex: 1, color: '#1f1635', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
+  checkText: { width: 24, color: '#1f003d', fontSize: 17, lineHeight: 21, fontWeight: '900', textAlign: 'center' },
   continueButton: {
     alignSelf: 'flex-end',
     minHeight: 46,
@@ -612,25 +833,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f003d',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: space.xl,
   },
-  continueButtonText: { color: '#ffffff', fontSize: 15, lineHeight: 20, fontWeight: '800' },
-  draftList: { gap: 10 },
+  continueButtonText: { color: '#ffffff', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '800' },
+  draftList: { gap: space.sm },
   draftCard: {
-    borderRadius: 24,
+    borderRadius: radius.lg,
     backgroundColor: '#ffffff',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
-    padding: 18,
+    padding: space.lg,
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
   },
   memoryDraftCard: {
-    borderColor: '#31506f',
+    borderColor: '#294b78',
     backgroundColor: '#f7fbff',
   },
-  draftLabel: { color: '#31506f', fontSize: 13, lineHeight: 18, fontWeight: '900', letterSpacing: 0.35, textTransform: 'uppercase' },
-  draftText: { color: '#1f1635', fontSize: 16, lineHeight: 24, fontWeight: '600' },
-  chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 24, fontWeight: '500' },
+  draftLabel: { color: '#294b78', fontSize: typeScale.eyebrow, lineHeight: lineScale.eyebrow, fontWeight: '800', letterSpacing: 0.35, textTransform: 'uppercase' },
+  draftText: { color: '#1f1635', fontSize: typeScale.body, lineHeight: lineScale.bodyLarge, fontWeight: '600' },
+  chevron: { color: '#b7afc5', fontSize: 22, lineHeight: 22, fontWeight: '500' },
 });

@@ -5,13 +5,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import { saveExpressReflection } from '@/constants/reflections';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 type ExpressStyle = 'direct' | 'relational';
 type ExpressMode = 'text' | 'voice';
 
 export default function ExpressCaptureScreen() {
+  const theme = useAppTheme();
   const params = useLocalSearchParams<{
     style?: string | string[];
     scenario?: string | string[];
@@ -51,7 +54,7 @@ export default function ExpressCaptureScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
@@ -124,13 +127,13 @@ function normalizeParam(value?: string | string[]) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#e9f0fa' },
+  screen: { flex: 1, backgroundColor: '#c2dcff' },
   keyboardView: { flex: 1 },
   content: { paddingHorizontal: 18, paddingBottom: 120, gap: 18 },
   header: { alignItems: 'center', gap: 8 },
-  stepLabel: { color: '#7a708c', fontSize: 12, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
-  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: 16, lineHeight: 24, fontWeight: '600', maxWidth: 330 },
+  stepLabel: { color: '#7a708c', fontSize: typeScale.eyebrow, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  subtitle: { color: '#5e4f79', textAlign: 'center', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, fontWeight: '600', maxWidth: 330 },
   contextCard: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -139,8 +142,8 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 8,
   },
-  contextLabel: { color: '#31506f', fontSize: 13, fontWeight: '900', letterSpacing: 0.35, textTransform: 'uppercase' },
-  contextText: { color: '#1f1635', fontSize: 18, lineHeight: 27, fontWeight: '700' },
+  contextLabel: { color: '#294b78', fontSize: typeScale.eyebrow, fontWeight: '900', letterSpacing: 0.35, textTransform: 'uppercase' },
+  contextText: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
   modeRow: { flexDirection: 'row', gap: 10 },
   modeButton: {
     flex: 1,
@@ -153,7 +156,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(31, 22, 53, 0.1)',
   },
   modeButtonActive: { backgroundColor: '#1f003d' },
-  modeButtonText: { color: '#1f1635', fontSize: 16, fontWeight: '800' },
+  modeButtonText: { color: '#1f1635', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   modeButtonTextActive: { color: '#ffffff' },
   inputCard: {
     borderRadius: 24,
@@ -163,7 +166,7 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
-  inputLabel: { color: '#1f1635', fontSize: 19, lineHeight: 24, fontWeight: '800' },
+  inputLabel: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
   input: {
     minHeight: 180,
     borderRadius: 18,
@@ -171,11 +174,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2dced',
     color: '#1f1635',
-    fontSize: 17,
-    lineHeight: 24,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
     padding: 14,
   },
-  statusText: { color: '#6f3150', fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  statusText: { color: '#6f3150', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
   primaryButton: {
     minHeight: 54,
     borderRadius: 27,
@@ -184,8 +187,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f003d',
     paddingHorizontal: 18,
   },
-  primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-  voiceText: { color: '#1f1635', fontSize: 17, lineHeight: 25, fontWeight: '700' },
-  voiceHint: { color: '#5e4f79', fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  primaryButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
+  voiceText: { color: '#1f1635', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, fontWeight: '700' },
+  voiceHint: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 });

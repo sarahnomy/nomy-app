@@ -6,10 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Text, TextInput } from '@/components/nomy-type';
 import { apiUrl } from '@/constants/api';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import { goBackOrReplace } from '@/constants/navigation';
 import { completeOnboarding } from '@/constants/onboarding';
 import { supportOptions } from '@/constants/support';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 type Recommendation = {
   category: SupportCategory;
@@ -37,11 +39,11 @@ const categoryLabels: Record<SupportCategory, string> = {
 
 const featureVisuals: Record<string, { color: string; image: ImageSource }> = {
   emotionize: {
-    color: '#e9c3f1',
+    color: '#e1dcf9',
     image: require('@/assets/images/emotionize.png'),
   },
   dailies: {
-    color: '#f1f1ff',
+    color: '#e1dcf9',
     image: require('@/assets/images/dailies.png'),
   },
   express: {
@@ -49,7 +51,7 @@ const featureVisuals: Record<string, { color: string; image: ImageSource }> = {
     image: require('@/assets/images/express.png'),
   },
   toolkit: {
-    color: '#fff5e9',
+    color: '#e9c3f1',
     image: require('@/assets/images/toolkit.png'),
   },
 };
@@ -223,6 +225,7 @@ function getLocalRecommendation(feeling: string): Recommendation {
 }
 
 export default function SupportRightNowScreen() {
+  const theme = useAppTheme();
   const [customFeeling, setCustomFeeling] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -315,7 +318,7 @@ export default function SupportRightNowScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
@@ -487,13 +490,13 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  title: { color: '#1f003d', textAlign: 'center', fontSize: 26, fontWeight: '400', lineHeight: 34 },
+  title: { color: '#1f003d', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle },
   backControl: {
     alignSelf: 'flex-start',
     minHeight: 42,
@@ -508,7 +511,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: 8, paddingTop: 12 },
   section: { gap: 12 },
   inputHeader: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  sectionTitle: { color: '#1f003d', fontSize: 20, fontWeight: '700' },
+  sectionTitle: { color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500' },
   doneButton: {
     minHeight: 32,
     borderRadius: 16,
@@ -519,7 +522,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(31, 0, 61, 0.12)',
   },
-  doneButtonText: { color: '#1f003d', fontSize: 14, fontWeight: '800' },
+  doneButtonText: { color: '#1f003d', fontSize: typeScale.helper, fontWeight: '800' },
   options: { gap: 10 },
   optionCard: {
     minHeight: 72,
@@ -530,8 +533,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   optionPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  optionLabel: { color: '#1f003d', fontSize: 18, fontWeight: '700' },
-  optionTone: { color: '#5e4f79', fontSize: 14, lineHeight: 20 },
+  optionLabel: { color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
+  optionTone: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper },
   input: {
     minHeight: 128,
     borderRadius: 8,
@@ -541,11 +544,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: '#1f003d',
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
   },
-  error: { color: '#9b2448', fontSize: 15, lineHeight: 21 },
-  notice: { color: '#5e4f79', fontSize: 15, lineHeight: 21 },
+  error: { color: '#9b2448', fontSize: typeScale.body, lineHeight: lineScale.body },
+  notice: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body },
   primaryButton: {
     minHeight: 52,
     borderRadius: 8,
@@ -555,7 +558,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   primaryButtonPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
-  primaryButtonText: { color: '#1f003d', fontSize: 16, fontWeight: '700' },
+  primaryButtonText: { color: '#1f003d', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   loadingCard: {
     borderRadius: 8,
     backgroundColor: '#f7f3fd',
@@ -564,7 +567,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  loadingText: { color: '#5e4f79', fontSize: 15, lineHeight: 22 },
+  loadingText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body },
   recommendationCard: {
     borderRadius: 8,
     borderWidth: 1,
@@ -583,7 +586,7 @@ const styles = StyleSheet.create({
   },
   recommendationIcon: { width: 44, height: 44 },
   recommendationCopy: { flex: 1, gap: 4 },
-  recommendationEyebrow: { color: '#5e4f79', fontSize: 13, fontWeight: '700' },
+  recommendationEyebrow: { color: '#5e4f79', fontSize: typeScale.helper, fontWeight: '700' },
   categoryChip: {
     alignSelf: 'flex-start',
     minHeight: 26,
@@ -593,9 +596,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.62)',
   },
-  categoryChipText: { color: '#4f4268', fontSize: 12, fontWeight: '800' },
-  recommendationTitle: { color: '#1f003d', fontSize: 22, fontWeight: '700' },
-  recommendationReason: { color: '#4f4268', fontSize: 15, lineHeight: 22 },
+  categoryChipText: { color: '#4f4268', fontSize: typeScale.eyebrow, fontWeight: '800' },
+  recommendationTitle: { color: '#1f003d', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700' },
+  recommendationReason: { color: '#4f4268', fontSize: typeScale.body, lineHeight: lineScale.body },
   openButton: {
     minHeight: 48,
     borderRadius: 8,
@@ -604,7 +607,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  openButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  openButtonText: { color: '#ffffff', fontSize: typeScale.body, fontWeight: '700' },
   alternativeList: { gap: 10 },
   alternativeCard: {
     minHeight: 58,
@@ -624,6 +627,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.58)',
   },
   alternativeIcon: { width: 32, height: 32 },
-  alternativeText: { flex: 1, color: '#1f003d', fontSize: 16, fontWeight: '700' },
+  alternativeText: { flex: 1, color: '#1f003d', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   alternativeChevron: { color: '#6f6285', fontSize: 22, lineHeight: 24, fontWeight: '400' },
 });

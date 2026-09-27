@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text, TextInput } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { goBackOrReplace } from '@/constants/navigation';
 import { saveCheckInReflection } from '@/constants/reflections';
 import { getSessionUser, type SessionUser } from '@/constants/session';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 const todayOptions = ['Good', 'Okay', 'Not great', 'Low energy', 'Stressed', "I don't know"] as const;
 const helpOptions = [
@@ -37,6 +39,7 @@ const nextActions = [
 ] as const;
 
 export default function DailiesMorningScreen() {
+  const theme = useAppTheme();
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [todayFeeling, setTodayFeeling] = useState('');
   const [todayHelp, setTodayHelp] = useState('');
@@ -100,7 +103,7 @@ export default function DailiesMorningScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
@@ -248,18 +251,18 @@ function OptionSection({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fffaeb' },
+  screen: { flex: 1, backgroundColor: '#d5f1f0' },
   keyboardView: { flex: 1 },
   content: { paddingHorizontal: 18, paddingBottom: 140, gap: 18 },
   header: { alignItems: 'center', gap: 8, paddingTop: 4 },
   kicker: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 30, fontWeight: '700', lineHeight: 38 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle },
   card: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -272,7 +275,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
   },
-  sectionTitle: { color: '#1f1635', fontSize: 21, lineHeight: 27, fontWeight: '700' },
+  sectionTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '500' },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   optionPill: {
     minHeight: 46,
@@ -286,7 +289,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   optionPillActive: { backgroundColor: '#1f003d', borderColor: '#1f003d' },
-  optionText: { color: '#2e2840', fontSize: 16, lineHeight: 21, fontWeight: '700' },
+  optionText: { color: '#2e2840', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   optionTextActive: { color: '#ffffff' },
   segmentRow: { flexDirection: 'row', gap: 10 },
   segmentButton: {
@@ -301,7 +304,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   segmentButtonActive: { backgroundColor: '#1f003d', borderColor: '#1f003d' },
-  segmentText: { color: '#2e2840', fontSize: 14, lineHeight: 19, fontWeight: '800', textAlign: 'center' },
+  segmentText: { color: '#2e2840', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '800', textAlign: 'center' },
   segmentTextActive: { color: '#ffffff' },
   input: {
     minHeight: 130,
@@ -309,10 +312,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f4e7',
     padding: 14,
     color: '#1f1635',
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: typeScale.bodyLarge,
+    lineHeight: lineScale.bodyLarge,
   },
-  status: { color: '#6b647d', fontSize: 15, lineHeight: 22, textAlign: 'center' },
+  status: { color: '#6b647d', fontSize: typeScale.body, lineHeight: lineScale.body, textAlign: 'center' },
   saveButton: {
     minHeight: 56,
     borderRadius: 28,
@@ -323,7 +326,7 @@ const styles = StyleSheet.create({
   },
   saveButtonPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
   saveButtonDisabled: { opacity: 0.65 },
-  saveButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+  saveButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   actionList: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#fbf8ed' },
   actionRow: {
     minHeight: 54,
@@ -334,7 +337,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#efe6c7',
   },
-  actionText: { flex: 1, color: '#1f1635', fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  actionText: { flex: 1, color: '#1f1635', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 24, fontWeight: '500' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 });

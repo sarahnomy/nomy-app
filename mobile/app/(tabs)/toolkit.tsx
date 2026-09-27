@@ -1,11 +1,13 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
+import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
 const toolRoutes = {
   Breathing: '/toolkit-breathing',
@@ -43,6 +45,8 @@ type NeedOption = (typeof needOptions)[number];
 type ToolName = NeedOption['tools'][number];
 
 export default function ToolkitScreen() {
+  const theme = useAppTheme();
+  const params = useLocalSearchParams<{ origin?: string | string[] }>();
   const [selectedNeed, setSelectedNeed] = useState<NeedOption | null>(null);
 
   useEffect(() => {
@@ -52,6 +56,11 @@ export default function ToolkitScreen() {
   function handleBack() {
     if (selectedNeed) {
       setSelectedNeed(null);
+      return;
+    }
+
+    if (params.origin === 'home') {
+      router.replace('/');
       return;
     }
 
@@ -65,20 +74,25 @@ export default function ToolkitScreen() {
 
   function openTool(tool: ToolName) {
     if (tool in toolRoutes) {
-      router.push(toolRoutes[tool as keyof typeof toolRoutes]);
+      router.push({
+        pathname: toolRoutes[tool as keyof typeof toolRoutes],
+        params: { origin: 'toolkit' },
+      });
     }
   }
 
+  const backLabel = selectedNeed ? 'Toolkit' : params.origin === 'home' ? 'Home' : 'Support';
+
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <BackControl label={selectedNeed ? 'Toolkit' : 'Support'} onPress={handleBack} />
+        <BackControl label={backLabel} onPress={handleBack} />
 
         <View style={styles.waveWrap}>
-          <View style={styles.wave}>
+          <View style={[styles.wave, { backgroundColor: theme.screen }]}>
             <View style={styles.header}>
-              <Text style={styles.stepLabel}>Toolkit</Text>
-              <Text style={styles.title}>
+              <Text style={[styles.stepLabel, { color: theme.subtle }]}>Toolkit</Text>
+              <Text style={[styles.title, { color: theme.text }]}>
                 {selectedNeed ? selectedNeed.title : 'What do you need right now?'}
               </Text>
             </View>
@@ -86,25 +100,25 @@ export default function ToolkitScreen() {
         </View>
 
         {!selectedNeed ? (
-          <View style={styles.needList}>
+          <View style={[styles.needList, { backgroundColor: '#e9c3f1' }]}>
             {needOptions.map((item) => (
               <Pressable
                 accessibilityRole="button"
                 key={item.id}
                 onPress={() => chooseNeed(item)}
-                style={({ pressed }) => [styles.needCard, pressed && styles.rowPressed]}>
+                style={({ pressed }) => [styles.needCard, { backgroundColor: '#e9c3f1', borderBottomColor: 'rgba(31, 22, 53, 0.1)' }, pressed && styles.rowPressed]}>
                 <View style={styles.needCopy}>
-                  <Text style={styles.needTitle}>{item.title}</Text>
+                  <Text style={[styles.needTitle, { color: theme.text }]}>{item.title}</Text>
                 </View>
-                <Text style={styles.chevron}>›</Text>
+                <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
               </Pressable>
             ))}
           </View>
         ) : (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>You could try</Text>
-              <View style={styles.toolList}>
+              <Text style={[styles.sectionTitle, { color: theme.subtle }]}>You could try</Text>
+              <View style={[styles.toolList, { backgroundColor: '#e9c3f1', borderColor: theme.border }]}>
                 {selectedNeed.tools.map((tool) => {
                   const available = tool in toolRoutes;
 
@@ -116,17 +130,15 @@ export default function ToolkitScreen() {
                       onPress={() => openTool(tool)}
                       style={({ pressed }) => [
                         styles.toolRow,
+                        { backgroundColor: available ? '#e9c3f1' : 'rgba(233, 195, 241, 0.46)', borderBottomColor: 'rgba(31, 22, 53, 0.1)' },
                         !available && styles.lockedTool,
                         pressed && available && styles.rowPressed,
                       ]}>
                       <View style={styles.toolCopy}>
-                        <Text style={available ? styles.toolText : styles.lockedText}>{tool}</Text>
-                        <Text style={styles.toolMeta}>
-                          {available ? toolMeta(tool) : 'Coming later'}
-                        </Text>
+                        <Text style={[available ? styles.toolText : styles.lockedText, { color: available ? theme.text : theme.subtle }]}>{tool}</Text>
                       </View>
                       {available ? (
-                        <Text style={styles.chevron}>›</Text>
+                        <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
                       ) : (
                         <View style={styles.lockedBadge}>
                           <Text style={styles.lockedLabel}>Soon</Text>
@@ -138,8 +150,8 @@ export default function ToolkitScreen() {
               </View>
             </View>
 
-            <View style={styles.noteCard}>
-              <Text style={styles.noteText}>You can try one thing, stop, or choose a different need. Nothing here has to be completed.</Text>
+            <View style={[styles.noteCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <Text style={[styles.noteText, { color: theme.muted }]}>You can try one thing, stop, or choose a different need. Nothing here has to be completed.</Text>
             </View>
           </>
         )}
@@ -148,42 +160,30 @@ export default function ToolkitScreen() {
   );
 }
 
-function toolMeta(tool: ToolName) {
-  if (tool === 'Breathing') {
-    return 'Guided breathing rounds';
-  }
-
-  if (tool === 'Puzzles') {
-    return 'Structured focus activities';
-  }
-
-  return 'Practical support';
-}
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fde6cf' },
-  content: { paddingHorizontal: 18, paddingBottom: 126, gap: 24 },
-  waveWrap: { marginHorizontal: -18 },
+  screen: { flex: 1, backgroundColor: '#e9c3f1' },
+  content: { paddingHorizontal: space.screenX, paddingBottom: 122, gap: space.xl },
+  waveWrap: { marginHorizontal: -space.screenX },
   wave: {
-    backgroundColor: '#fde6cf',
-    paddingTop: 8,
-    paddingHorizontal: 18,
-    paddingBottom: 22,
+    backgroundColor: '#e9c3f1',
+    paddingTop: space.sm,
+    paddingHorizontal: space.screenX,
+    paddingBottom: space.xl,
     overflow: 'hidden',
     position: 'relative',
   },
   stepLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
-  header: { alignItems: 'center', gap: 8, paddingTop: 12 },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  header: { alignItems: 'center', gap: space.xs, paddingTop: space.md },
   needList: {
-    borderRadius: 24,
+    borderRadius: 14,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
     shadowColor: '#110c28',
@@ -192,52 +192,49 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   needCard: {
-    minHeight: 86,
+    minHeight: controlSize.large,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: space.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e8e3f0',
     backgroundColor: '#ffffff',
   },
-  needCopy: { flex: 1, gap: 5 },
-  needTitle: { color: '#1f003d', fontSize: 19, lineHeight: 24, fontWeight: '700' },
-  needText: { color: '#5e4f79', fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  chevron: { color: '#b7afc5', fontSize: 26, lineHeight: 28, fontWeight: '400' },
+  needCopy: { flex: 1 },
+  needTitle: { color: '#1f003d', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600' },
+  needText: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '500' },
+  chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 26, fontWeight: '400' },
   rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
-  section: { gap: 10 },
+  section: { gap: space.sm },
   sectionTitle: {
     color: '#7a708c',
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '500',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   toolList: {
-    borderRadius: 24,
+    borderRadius: 14,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
   },
   toolRow: {
-    minHeight: 70,
+    minHeight: controlSize.large,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: space.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e8e3f0',
     backgroundColor: '#ffffff',
   },
   lockedTool: { backgroundColor: '#fbfaff' },
-  toolCopy: { flex: 1, gap: 3 },
-  toolText: { color: '#1f003d', fontSize: 19, fontWeight: '600' },
-  lockedText: { color: '#9b93aa', fontSize: 19, fontWeight: '600' },
-  toolMeta: { color: '#817690', fontSize: 13, fontWeight: '500' },
+  toolCopy: { flex: 1 },
+  toolText: { color: '#1f003d', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600' },
+  lockedText: { color: '#9b93aa', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '600' },
   lockedBadge: {
     borderRadius: 999,
     backgroundColor: '#f0edf7',
@@ -246,11 +243,11 @@ const styles = StyleSheet.create({
   },
   lockedLabel: { color: '#8f87a0', fontSize: 12, fontWeight: '800' },
   noteCard: {
-    borderRadius: 20,
+    borderRadius: radius.md,
     backgroundColor: 'rgba(255,255,255,0.7)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
-    padding: 16,
+    padding: space.lg,
   },
-  noteText: { color: '#5e4f79', fontSize: 15, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
+  noteText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600', textAlign: 'center' },
 });

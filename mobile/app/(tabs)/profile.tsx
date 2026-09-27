@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TabSwipe } from '@/components/tab-swipe';
 import { Text } from '@/components/nomy-type';
+import { useAppTheme } from '@/constants/app-theme';
 import { getAvatarActivities, type AvatarActivity } from '@/constants/avatar';
 import {
   type CheckInReflectionEntry,
@@ -17,6 +18,7 @@ import {
   syncEmotionReflectionsFromServer,
 } from '@/constants/reflections';
 import { getSessionUser, logoutSessionUser, type SessionUser } from '@/constants/session';
+import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
 function formatDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -34,7 +36,7 @@ function formatDate(value: string) {
 const PROFILE_AVATAR_KEY = 'nomy_profile_avatar';
 
 const avatarOptions = [
-  { id: 'sage', label: 'Sage', backgroundColor: '#dfeee0', color: '#314d34' },
+  { id: 'sage', label: 'Sage', backgroundColor: '#dfafe9', color: '#314d34' },
   { id: 'sky', label: 'Sky', backgroundColor: '#dce9f8', color: '#294866' },
   { id: 'lavender', label: 'Lavender', backgroundColor: '#e8def8', color: '#453460' },
   { id: 'peach', label: 'Peach', backgroundColor: '#fde6cf', color: '#6b4328' },
@@ -52,6 +54,7 @@ const profileTabs: { id: ProfileTab; label: string }[] = [
 const SIDE_MENU_WIDTH = 284;
 
 export default function ProfileScreen() {
+  const theme = useAppTheme();
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [checkInReflections, setCheckInReflections] = useState<CheckInReflectionEntry[]>([]);
   const [emotionReflections, setEmotionReflections] = useState<EmotionReflectionEntry[]>([]);
@@ -146,28 +149,28 @@ export default function ProfileScreen() {
     return [
       {
         name: 'Emotionize',
-        color: '#f4f8f3',
+        color: '#e1dcf9',
         used: countUses(['emotionize']),
         reflected: emotionReflections.length,
         detail: 'stories and reflections',
       },
       {
         name: 'Check-in',
-        color: '#fffaeb',
+        color: '#d5f1f0',
         used: countUses(['dailies']),
         reflected: checkInReflections.length,
         detail: 'daily prompts saved',
       },
       {
         name: 'Express',
-        color: '#e9f0fa',
+        color: '#c2dcff',
         used: countUses(['express']),
         reflected: expressReflections.length,
         detail: 'words saved',
       },
       {
         name: 'Toolkit',
-        color: '#fde6cf',
+        color: '#e9c3f1',
         used: countUses(['toolkit', 'breathing']),
         reflected: activities.filter((activity) => activity.type === 'breathing_completed').length,
         detail: 'tools and breathing rounds',
@@ -200,25 +203,25 @@ export default function ProfileScreen() {
 
   return (
     <TabSwipe current="/profile">
-      <SafeAreaView style={styles.screen}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
-              <Text style={styles.kicker}>Profile</Text>
+              <View />
               {sessionUser ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Open profile menu"
                   onPress={() => setAccountMenuOpen(true)}
-                  style={({ pressed }) => [styles.hamburgerButton, pressed && styles.pressed]}>
-                  <Text style={styles.hamburgerLine}>☰</Text>
+                  style={({ pressed }) => [styles.hamburgerButton, { backgroundColor: theme.card, borderColor: theme.border }, pressed && styles.pressed]}>
+                  <Text style={[styles.hamburgerLine, { color: theme.text }]}>☰</Text>
                 </Pressable>
               ) : null}
             </View>
-            {!sessionUser ? <Text style={styles.title}>Your nomy space</Text> : null}
+            {!sessionUser ? <Text style={[styles.title, { color: theme.text }]}>Your nomy space</Text> : null}
           </View>
 
-          <View style={styles.accountCard}>
+          <View style={[styles.accountCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             {sessionUser ? (
               <>
                 <View style={styles.profileHero}>
@@ -270,8 +273,8 @@ export default function ProfileScreen() {
             ) : (
               <>
                 <View style={styles.accountCopy}>
-                  <Text style={styles.accountLabel}>Account</Text>
-                  <Text style={styles.accountText}>Use an account when you want your saved space connected to you.</Text>
+                  <Text style={[styles.accountLabel, { color: theme.subtle }]}>Account</Text>
+                  <Text style={[styles.accountText, { color: theme.muted }]}>Use an account when you want your saved space connected to you.</Text>
                 </View>
                 <View style={styles.accountActions}>
                   <Pressable
@@ -282,23 +285,27 @@ export default function ProfileScreen() {
                     <Text style={styles.authCtaChevron}>›</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.accountFootnote}>You can still use the app without logging in.</Text>
+                <Text style={[styles.accountFootnote, { color: theme.subtle }]}>You can still use the app without logging in.</Text>
               </>
             )}
           </View>
 
           {!sessionUser ? (
             <View style={styles.profileActions}>
-              <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [styles.rowButton, pressed && styles.rowPressed]}>
-                <Text style={styles.rowText}>Settings and FAQs</Text>
-                <Text style={styles.chevron}>›</Text>
+              <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [styles.rowButton, { backgroundColor: theme.card, borderColor: theme.border }, pressed && styles.rowPressed]}>
+                <Text style={[styles.rowText, { color: theme.text }]}>Settings</Text>
+                <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push('/faqs')} style={({ pressed }) => [styles.rowButton, { backgroundColor: theme.card, borderColor: theme.border }, pressed && styles.rowPressed]}>
+                <Text style={[styles.rowText, { color: theme.text }]}>FAQs</Text>
+                <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
               </Pressable>
             </View>
           ) : null}
 
           {sessionUser ? (
             <>
-              <View style={styles.profileTabs}>
+              <View style={[styles.profileTabs, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 {profileTabs.map((tab) => {
                   const selected = activeTab === tab.id;
                   return (
@@ -389,7 +396,7 @@ export default function ProfileScreen() {
                         {emotionReflections.map((item) => (
                           <View key={item.id} style={styles.reflectionRow}>
                             <View style={styles.rowHeader}>
-                              <View style={[styles.emotionPill, { backgroundColor: item.categoryColor || '#ebe7ff' }]}>
+                              <View style={[styles.emotionPill, { backgroundColor: item.categoryColor || '#e1dcf9' }]}>
                                 <Text style={styles.emotionPillText}>{item.emotion}</Text>
                               </View>
                               <Text style={styles.dateText}>{formatDate(item.date)}</Text>
@@ -446,7 +453,16 @@ export default function ProfileScreen() {
                   router.push('/settings');
                 }}
                 style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
-                <Text style={styles.accountMenuText}>Settings and FAQs</Text>
+                <Text style={styles.accountMenuText}>Settings</Text>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  closeAccountMenu();
+                  router.push('/faqs');
+                }}
+                style={({ pressed }) => [styles.accountMenuRow, pressed && styles.rowPressed]}>
+                <Text style={styles.accountMenuText}>FAQs</Text>
                 <Text style={styles.chevron}>›</Text>
               </Pressable>
               <Pressable
@@ -466,18 +482,18 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fffaf2' },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 126, gap: 18 },
-  header: { gap: 8, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
+  screen: { flex: 1, backgroundColor: '#ffffff' },
+  content: { paddingHorizontal: space.screenX, paddingTop: space.sm, paddingBottom: 122, gap: space.lg },
+  header: { gap: space.xs, paddingHorizontal: space.sm, paddingTop: space.sm, paddingBottom: 4 },
   headerTopRow: {
-    minHeight: 42,
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   kicker: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -492,14 +508,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e5dff0',
   },
-  hamburgerLine: { color: '#1f1635', fontSize: 24, lineHeight: 27, fontWeight: '700' },
-  title: { color: '#1f1635', textAlign: 'center', fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.45 },
-  subtitle: { color: '#70677f', textAlign: 'center', fontSize: 16, lineHeight: 23, maxWidth: 330 },
+  hamburgerLine: { color: '#1f1635', fontSize: 22, lineHeight: 24, fontWeight: '700' },
+  title: { color: '#1f1635', textAlign: 'center', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  subtitle: { color: '#70677f', textAlign: 'center', fontSize: typeScale.body, lineHeight: lineScale.body, maxWidth: 330 },
   accountCard: {
-    borderRadius: 28,
+    borderRadius: radius.xl,
     backgroundColor: '#ffffff',
-    padding: 18,
-    gap: 16,
+    padding: space.lg,
+    gap: space.md,
     position: 'relative',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
@@ -511,15 +527,15 @@ const styles = StyleSheet.create({
   accountCopy: { gap: 5 },
   accountLabel: {
     color: '#817690',
-    fontSize: 12,
+    fontSize: typeScale.eyebrow,
     fontWeight: '900',
     letterSpacing: 0.45,
     textTransform: 'uppercase',
   },
-  accountTitle: { color: '#1f1635', fontSize: 21, lineHeight: 26, fontWeight: '900', letterSpacing: -0.3 },
-  accountText: { color: '#5e4f79', fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  accountFootnote: { color: '#817690', fontSize: 13, lineHeight: 19, fontWeight: '600', textAlign: 'center' },
-  accountActions: { gap: 10 },
+  accountTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '700', letterSpacing: -0.2 },
+  accountText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
+  accountFootnote: { color: '#817690', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600', textAlign: 'center' },
+  accountActions: { gap: space.sm },
   profileHero: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -554,8 +570,8 @@ const styles = StyleSheet.create({
     paddingTop: 88,
   },
   accountMenuRow: {
-    minHeight: 56,
-    paddingHorizontal: 18,
+    minHeight: controlSize.large,
+    paddingHorizontal: space.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -563,21 +579,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#eee8f6',
   },
-  accountMenuText: { flex: 1, color: '#1f1635', fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  accountMenuText: { flex: 1, color: '#1f1635', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   accountMenuDangerText: { color: '#8a2440' },
   profileAvatarWrap: {
     position: 'relative',
   },
   profileAvatar: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(31, 22, 53, 0.08)',
   },
-  profileAvatarText: { fontSize: 34, lineHeight: 38, fontWeight: '900' },
+  profileAvatarText: { fontSize: 30, lineHeight: 34, fontWeight: '900' },
   profileHeroCopy: { flex: 1, gap: 4 },
   avatarEditButton: {
     position: 'absolute',
@@ -618,35 +634,30 @@ const styles = StyleSheet.create({
   avatarOptionText: { fontSize: 17, lineHeight: 20, fontWeight: '900' },
   authCtaButton: {
     alignSelf: 'stretch',
-    minHeight: 58,
-    borderRadius: 29,
+    minHeight: controlSize.large,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
     backgroundColor: '#1f003d',
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: '#1f003d',
     paddingHorizontal: 18,
-    shadowColor: '#1f003d',
-    shadowOpacity: 0.26,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 7,
   },
-  authCtaButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '900', letterSpacing: -0.1 },
-  authCtaChevron: { color: '#ffffff', fontSize: 28, lineHeight: 28, fontWeight: '600', marginTop: -2 },
+  authCtaButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800', letterSpacing: -0.1 },
+  authCtaChevron: { color: '#ffffff', fontSize: 24, lineHeight: 24, fontWeight: '600', marginTop: -2 },
   secondaryButton: {
     flex: 1,
     minHeight: 50,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#ded7ec',
   },
-  secondaryButtonText: { color: '#1f1635', fontSize: 16, fontWeight: '800' },
+  secondaryButtonText: { color: '#1f1635', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   logoutButton: {
     minHeight: 50,
     borderRadius: 25,
@@ -656,7 +667,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1ccd5',
   },
-  logoutButtonText: { color: '#8a2440', fontSize: 16, fontWeight: '800' },
+  logoutButtonText: { color: '#8a2440', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   profileTabs: {
     minHeight: 48,
@@ -675,21 +686,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  profileTabActive: { backgroundColor: '#e9f0fa' },
-  profileTabText: { color: '#70677f', fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  profileTabActive: { backgroundColor: '#c2dcff' },
+  profileTabText: { color: '#70677f', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '800' },
   profileTabTextActive: { color: '#1f1635' },
   statsGrid: { flexDirection: 'row', gap: 12 },
   statCard: {
     flex: 1,
-    minHeight: 102,
-    borderRadius: 24,
-    backgroundColor: '#e9f0fa',
-    padding: 16,
+    minHeight: 86,
+    borderRadius: radius.lg,
+    backgroundColor: '#c2dcff',
+    padding: space.md,
     justifyContent: 'center',
     gap: 6,
   },
-  statNumber: { color: '#1f1635', fontSize: 32, lineHeight: 36, fontWeight: '900' },
-  statLabel: { color: '#5e4f79', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  statNumber: { color: '#1f1635', fontSize: typeScale.pageTitle, lineHeight: lineScale.pageTitle, fontWeight: '800' },
+  statLabel: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
   featureStatsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -697,20 +708,20 @@ const styles = StyleSheet.create({
   },
   featureStatCard: {
     width: '48%',
-    minHeight: 138,
-    borderRadius: 24,
+    minHeight: 116,
+    borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
     padding: 15,
     gap: 10,
     justifyContent: 'space-between',
   },
-  featureStatName: { color: '#1f1635', fontSize: 18, lineHeight: 22, fontWeight: '900', letterSpacing: -0.25 },
+  featureStatName: { color: '#1f1635', fontSize: typeScale.cardTitle, lineHeight: lineScale.cardTitle, fontWeight: '700', letterSpacing: -0.15 },
   featureStatNumbers: { flexDirection: 'row', gap: 10 },
   featureStatNumberBlock: { flex: 1, gap: 2 },
-  featureStatNumber: { color: '#1f1635', fontSize: 25, lineHeight: 29, fontWeight: '900' },
-  featureStatLabel: { color: '#5e4f79', fontSize: 12, lineHeight: 16, fontWeight: '800', textTransform: 'uppercase' },
-  featureStatDetail: { color: '#70677f', fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  featureStatNumber: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '800' },
+  featureStatLabel: { color: '#5e4f79', fontSize: typeScale.eyebrow, lineHeight: lineScale.eyebrow, fontWeight: '800', textTransform: 'uppercase' },
+  featureStatDetail: { color: '#70677f', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
   recapCard: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -720,8 +731,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(31, 22, 53, 0.08)',
   },
   recapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  recapMonth: { color: '#70677f', fontSize: 14, fontWeight: '800' },
-  recapText: { color: '#5e4f79', fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  recapMonth: { color: '#70677f', fontSize: typeScale.helper, fontWeight: '800' },
+  recapText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   profileActions: {
     borderRadius: 22,
     overflow: 'hidden',
@@ -737,13 +748,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowPressed: { backgroundColor: '#faf8ff' },
-  rowText: { flex: 1, color: '#1f1635', fontSize: 17, fontWeight: '800' },
+  rowText: { flex: 1, color: '#1f1635', fontSize: typeScale.bodyLarge, fontWeight: '800' },
   chevron: { color: '#8f87a0', fontSize: 26, lineHeight: 28, fontWeight: '400' },
   section: { gap: 10 },
   sectionTitle: {
     color: '#817690',
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: typeScale.eyebrow,
+    fontWeight: '500',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
@@ -756,7 +767,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     color: '#817690',
-    fontSize: 13,
+    fontSize: typeScale.eyebrow,
     fontWeight: '800',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
@@ -771,15 +782,15 @@ const styles = StyleSheet.create({
     borderTopColor: '#e8e3f0',
   },
   rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  checkInPill: { borderRadius: 999, backgroundColor: '#fffaeb', paddingHorizontal: 10, paddingVertical: 6 },
-  checkInPillText: { color: '#6d5a22', fontSize: 13, fontWeight: '800' },
-  emotionPill: { borderRadius: 999, backgroundColor: '#f4f8f3', paddingHorizontal: 10, paddingVertical: 6 },
-  emotionPillText: { color: '#435944', fontSize: 13, fontWeight: '800' },
-  expressPill: { borderRadius: 999, backgroundColor: '#e9f0fa', paddingHorizontal: 10, paddingVertical: 6 },
-  expressPillText: { color: '#31506f', fontSize: 13, fontWeight: '800' },
-  dateText: { color: '#8b829d', fontSize: 13, fontWeight: '600' },
-  contextText: { color: '#70677f', fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  reflectionText: { color: '#241b3b', fontSize: 16, lineHeight: 24 },
+  checkInPill: { borderRadius: 999, backgroundColor: '#d5f1f0', paddingHorizontal: 10, paddingVertical: 6 },
+  checkInPillText: { color: '#2d6867', fontSize: typeScale.helper, fontWeight: '800' },
+  emotionPill: { borderRadius: 999, backgroundColor: '#e1dcf9', paddingHorizontal: 10, paddingVertical: 6 },
+  emotionPillText: { color: '#4a3f72', fontSize: typeScale.helper, fontWeight: '800' },
+  expressPill: { borderRadius: 999, backgroundColor: '#c2dcff', paddingHorizontal: 10, paddingVertical: 6 },
+  expressPillText: { color: '#294b78', fontSize: typeScale.helper, fontWeight: '800' },
+  dateText: { color: '#8b829d', fontSize: typeScale.helper, fontWeight: '600' },
+  contextText: { color: '#70677f', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
+  reflectionText: { color: '#241b3b', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge },
   emptyCard: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -789,6 +800,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(31, 22, 53, 0.08)',
   },
-  emptyTitle: { color: '#1f1635', fontSize: 20, fontWeight: '800' },
-  emptyText: { color: '#70677f', fontSize: 16, lineHeight: 23, textAlign: 'center' },
+  emptyTitle: { color: '#1f1635', fontSize: typeScale.sectionTitle, lineHeight: lineScale.sectionTitle, fontWeight: '800' },
+  emptyText: { color: '#70677f', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, textAlign: 'center' },
 });

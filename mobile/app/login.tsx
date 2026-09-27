@@ -4,10 +4,13 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { apiUrl } from '@/constants/api';
+import { useAppTheme } from '@/constants/app-theme';
 import { Text, TextInput } from '@/components/nomy-type';
 import { setSessionUser } from '@/constants/session';
+import { lineScale, typeScale } from '@/constants/ui-scale';
 
 export default function LoginScreen() {
+  const theme = useAppTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -49,7 +52,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={8}
@@ -63,14 +66,13 @@ export default function LoginScreen() {
         </Pressable>
 
         <View style={styles.authHeader}>
-          <Text style={styles.wordmark}>nomy</Text>
-          <Text style={styles.subtitle}>Welcome back. Come in gently.</Text>
+          <Text style={[styles.wordmark, { color: theme.text }]}>nomy</Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.title}>Log in</Text>
-            <Text style={styles.lead}>Use your nomy account to keep your space with you.</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Log in</Text>
+            <Text style={[styles.lead, { color: theme.muted }]}>Use your nomy account to keep your space with you.</Text>
           </View>
 
           <View style={styles.field}>
@@ -135,10 +137,10 @@ const styles = StyleSheet.create({
     borderColor: '#ded7ec',
     paddingHorizontal: 14,
   },
-  homeButtonText: { color: '#1f003d', fontSize: 14, fontWeight: '800' },
+  homeButtonText: { color: '#1f003d', fontSize: typeScale.helper, fontWeight: '800' },
   authHeader: { alignItems: 'center', gap: 6 },
   wordmark: { color: '#24004b', fontSize: 42, lineHeight: 48, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { color: '#5e4f79', fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'center' },
+  subtitle: { color: '#5e4f79', fontSize: typeScale.bodyLarge, lineHeight: lineScale.bodyLarge, fontWeight: '700', textAlign: 'center' },
   card: {
     borderRadius: 28,
     backgroundColor: '#ffffff',
@@ -152,10 +154,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   cardHeader: { gap: 6 },
-  title: { color: '#1f1635', fontSize: 30, fontWeight: '900', lineHeight: 36, letterSpacing: -0.5 },
-  lead: { color: '#5e4f79', fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  title: { color: '#1f1635', fontSize: typeScale.pageTitle, fontWeight: '700', lineHeight: lineScale.pageTitle, letterSpacing: -0.25 },
+  lead: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600' },
   field: { gap: 8 },
-  label: { color: '#1f1635', fontSize: 14, fontWeight: '800' },
+  label: { color: '#1f1635', fontSize: typeScale.helper, fontWeight: '800' },
   input: {
     minHeight: 54,
     borderRadius: 18,
@@ -164,27 +166,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     color: '#1f1635',
     backgroundColor: '#fbf9ff',
-    fontSize: 16,
+    fontSize: typeScale.bodyLarge,
   },
-  error: { color: '#9b2448', fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  error: { color: '#9b2448', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '700' },
   button: {
     minHeight: 54,
-    borderRadius: 27,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1f003d',
   },
   buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
-  note: { color: '#6b647d', fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  buttonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '800' },
+  note: { color: '#6b647d', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600' },
   secondaryButton: {
     minHeight: 52,
-    borderRadius: 26,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#ded7ec',
   },
-  secondaryText: { color: '#1f003d', fontSize: 16, fontWeight: '800' },
+  secondaryText: { color: '#1f003d', fontSize: typeScale.bodyLarge, fontWeight: '800' },
 });
