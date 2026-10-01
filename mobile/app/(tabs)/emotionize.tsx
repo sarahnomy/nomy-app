@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as Speech from 'expo-speech';
+import * as FileSystem from 'expo-file-system/legacy';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackControl } from '@/components/back-control';
 import { Text } from '@/components/nomy-type';
+import { apiUrl } from '@/constants/api';
 import { useAppTheme } from '@/constants/app-theme';
 import { recordAvatarActivity } from '@/constants/avatar';
 import {
@@ -16,19 +18,30 @@ import {
   type EmotionizeStoryName,
   type EmotionizeStorySlide,
 } from '@/constants/emotionize-content';
+import { hapticLight, hapticSelection, hapticWarning } from '@/constants/haptics';
+import { goBackToOriginOrReplace } from '@/constants/navigation';
 import { controlSize, lineScale, radius, space, typeScale } from '@/constants/ui-scale';
 
 const emptyEmotionSelections = (): EmotionizeSelections => ({ looks: [], body: [], afterwards: [] });
+type ReadStatus = 'idle' | 'loading' | 'playing' | 'paused';
 
 export default function EmotionizeScreen() {
   const theme = useAppTheme();
-  const params = useLocalSearchParams<{ story?: string | string[] }>();
+  const params = useLocalSearchParams<{ story?: string | string[]; origin?: string | string[] }>();
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [story, setStory] = useState<EmotionizeStoryName | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [selections, setSelections] = useState<EmotionizeSelections>(emptyEmotionSelections);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [speechStatus, setSpeechStatus] = useState<'idle' | 'playing' | 'paused'>('idle');
+  const [lockedFeeling, setLockedFeeling] = useState<string | null>(null);
+  const [speechStatus, setSpeechStatus] = useState<ReadStatus>('idle');
+  const [activeReadLineIndex, setActiveReadLineIndex] = useState<number | null>(null);
+  const [readError, setReadError] = useState('');
+  const [audioUri, setAudioUri] = useState('');
+  const [audioCacheKey, setAudioCacheKey] = useState('');
+  const readingRunRef = useRef(0);
+  const player = useAudioPlayer(audioUri ? { uri: audioUri } : null);
+  const playerStatus = useAudioPlayerStatus(player);
 
   const category = useMemo(
     () => emotionizeCategories.find((item) => item.name === categoryName) || null,
@@ -36,20 +49,39 @@ export default function EmotionizeScreen() {
   );
   const slides = story ? emotionizeStories[story] : [];
   const currentSlide = slides[slideIndex];
-  const progress = slides.length ? `${slideIndex + 1} / ${slides.length}` : '';
+  const readableLines = currentSlide ? getReadableSlideLines(currentSlide) : [];
+  const canReadCurrentSlide = readableLines.length > 0;
 
   useEffect(() => {
     void recordAvatarActivity({ type: 'feature_opened', feature: 'emotionize' });
   }, []);
 
   useEffect(() => {
-    void Speech.stop();
+    readingRunRef.current += 1;
+    player.pause();
     setSpeechStatus('idle');
+    setActiveReadLineIndex(null);
+    setReadError('');
 
     return () => {
-      void Speech.stop();
+      readingRunRef.current += 1;
+      player.pause();
     };
   }, [slideIndex, story]);
+
+  useEffect(() => {
+    if (!readableLines.length || speechStatus === 'idle' || speechStatus === 'loading') {
+      return;
+    }
+
+    const duration = playerStatus.duration || estimateTotalReadDuration(readableLines);
+    setActiveReadLineIndex(getActiveLineIndex(readableLines, playerStatus.currentTime, duration));
+
+    if (playerStatus.didJustFinish) {
+      setSpeechStatus('idle');
+      setActiveReadLineIndex(null);
+    }
+  }, [playerStatus.currentTime, playerStatus.didJustFinish, playerStatus.duration, readableLines, speechStatus]);
 
   useEffect(() => {
     const requestedStory = normalizeParam(params.story);
@@ -71,6 +103,13 @@ export default function EmotionizeScreen() {
   }, [params.story]);
 
   function openStory(nextStory: EmotionizeStoryName) {
+    if ((category?.locked as readonly string[] | undefined)?.includes(nextStory)) {
+      hapticWarning();
+      setLockedFeeling(nextStory);
+      return;
+    }
+
+    hapticLight();
     const matchingCategory = emotionizeCategories.find((item) => item.feelings.includes(nextStory as never));
     if (matchingCategory) {
       setCategoryName(matchingCategory.name);
@@ -83,6 +122,7 @@ export default function EmotionizeScreen() {
   }
 
   function closeStory() {
+    hapticLight();
     void stopReading();
     setStory(null);
     setSlideIndex(0);
@@ -90,11 +130,14 @@ export default function EmotionizeScreen() {
   }
 
   function closeCategory() {
+    hapticLight();
     setCategoryName(null);
     setNoteOpen(false);
+    setLockedFeeling(null);
   }
 
   function previousStoryStep() {
+    hapticLight();
     if (slideIndex > 0) {
       setSlideIndex((current) => current - 1);
       return;
@@ -108,6 +151,7 @@ export default function EmotionizeScreen() {
       return;
     }
 
+    hapticLight();
     if (slideIndex < slides.length - 1) {
       setSlideIndex((current) => current + 1);
       return;
@@ -125,6 +169,7 @@ export default function EmotionizeScreen() {
   }
 
   function toggleOption(group: EmotionizeOptionGroupKey, option: string) {
+    hapticSelection();
     setSelections((current) => {
       const isSelected = current[group].includes(option);
       return {
@@ -134,50 +179,68 @@ export default function EmotionizeScreen() {
     });
   }
 
-  function startReading() {
-    if (!currentSlide) {
+  async function startReading() {
+    if (!readableLines.length) {
       return;
     }
 
-    const textToRead = getSlideSpeechText(currentSlide);
+    hapticLight();
+    const runId = readingRunRef.current + 1;
+    readingRunRef.current = runId;
+    setReadError('');
+    setSpeechStatus('loading');
+    setActiveReadLineIndex(0);
 
-    if (!textToRead) {
-      return;
+    try {
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const cacheKey = `${story || 'emotion'}-${slideIndex}-${hashText(readableLines.join('\n'))}`;
+      const nextUri = await getTtsAudioUri(readableLines, cacheKey);
+
+      if (readingRunRef.current !== runId) {
+        return;
+      }
+
+      if (audioCacheKey !== cacheKey || audioUri !== nextUri) {
+        player.replace({ uri: nextUri });
+        setAudioUri(nextUri);
+        setAudioCacheKey(cacheKey);
+      }
+
+      await player.seekTo(0);
+      player.play();
+      setSpeechStatus('playing');
+    } catch {
+      if (readingRunRef.current === runId) {
+        hapticWarning();
+        setReadError('Read to me could not start just now.');
+        setSpeechStatus('idle');
+        setActiveReadLineIndex(null);
+      }
     }
-
-    void Speech.stop();
-    setSpeechStatus('playing');
-    Speech.speak(textToRead, {
-      rate: 0.92,
-      pitch: 1,
-      onDone: () => setSpeechStatus('idle'),
-      onStopped: () => setSpeechStatus('idle'),
-      onError: () => setSpeechStatus('idle'),
-    });
   }
 
   async function pauseReading() {
-    try {
-      await Speech.pause();
-      setSpeechStatus('paused');
-    } catch {
-      await Speech.stop();
-      setSpeechStatus('idle');
-    }
+    readingRunRef.current += 1;
+    player.pause();
+    setSpeechStatus('paused');
   }
 
   async function resumeReading() {
-    try {
-      await Speech.resume();
-      setSpeechStatus('playing');
-    } catch {
-      startReading();
+    if (!readableLines.length) {
+      return;
     }
+
+    hapticLight();
+    player.play();
+    setSpeechStatus('playing');
   }
 
   async function stopReading() {
-    await Speech.stop();
+    readingRunRef.current += 1;
+    player.pause();
+    await player.seekTo(0);
     setSpeechStatus('idle');
+    setActiveReadLineIndex(null);
   }
 
   if (story && currentSlide && category) {
@@ -191,35 +254,6 @@ export default function EmotionizeScreen() {
             <Text style={styles.backControlText}>{slideIndex > 0 ? 'Previous' : 'Feelings'}</Text>
           </Pressable>
 
-          <View style={styles.storyPill}>
-            <Text style={styles.storyPillText}>{currentSlide.note || story}</Text>
-          </View>
-
-          <View style={styles.readToMeBar}>
-            <Text style={styles.readToMeLabel}>Read to me</Text>
-            <View style={styles.readToMeActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={speechStatus === 'paused' ? 'Resume reading' : 'Play reading'}
-                onPress={speechStatus === 'paused' ? resumeReading : startReading}
-                style={({ pressed }) => [styles.readButton, pressed && styles.readButtonPressed]}>
-                <Text style={styles.readButtonText}>{speechStatus === 'paused' ? 'Play' : 'Play'}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Pause reading"
-                disabled={speechStatus !== 'playing'}
-                onPress={pauseReading}
-                style={({ pressed }) => [
-                  styles.readButton,
-                  speechStatus !== 'playing' && styles.readButtonDisabled,
-                  pressed && speechStatus === 'playing' && styles.readButtonPressed,
-                ]}>
-                <Text style={[styles.readButtonText, speechStatus !== 'playing' && styles.readButtonTextDisabled]}>Pause</Text>
-              </Pressable>
-            </View>
-          </View>
-
           <View style={styles.progressRow}>
             {slides.map((_, index) => (
               <View key={index} style={styles.progressBar}>
@@ -228,8 +262,49 @@ export default function EmotionizeScreen() {
             ))}
           </View>
 
+          <View style={styles.storyPill}>
+            <Text style={styles.storyPillText}>{currentSlide.note || story}</Text>
+          </View>
+
+          {canReadCurrentSlide ? (
+            <View>
+              <View style={styles.readToMeBar}>
+                <Text style={styles.readToMeLabel}>Read to me</Text>
+                <View style={styles.readToMeActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={speechStatus === 'paused' ? 'Resume reading' : 'Play reading'}
+                    disabled={speechStatus === 'loading'}
+                    onPress={speechStatus === 'paused' ? resumeReading : startReading}
+                    style={({ pressed }) => [
+                      styles.readButton,
+                      speechStatus === 'loading' && styles.readButtonDisabled,
+                      pressed && speechStatus !== 'loading' && styles.readButtonPressed,
+                    ]}>
+                    <Text style={[styles.readButtonText, speechStatus === 'loading' && styles.readButtonTextDisabled]}>
+                      {speechStatus === 'loading' ? 'Preparing' : speechStatus === 'paused' ? 'Resume' : 'Play'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Pause reading"
+                    disabled={speechStatus !== 'playing'}
+                    onPress={pauseReading}
+                    style={({ pressed }) => [
+                      styles.readButton,
+                      speechStatus !== 'playing' && styles.readButtonDisabled,
+                      pressed && speechStatus === 'playing' && styles.readButtonPressed,
+                    ]}>
+                    <Text style={[styles.readButtonText, speechStatus !== 'playing' && styles.readButtonTextDisabled]}>Pause</Text>
+                  </Pressable>
+                </View>
+              </View>
+              {readError ? <Text style={styles.readError}>{readError}</Text> : null}
+            </View>
+          ) : null}
+
           <ScrollView style={styles.slide} contentContainerStyle={styles.slideContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.slideCard}>{renderSlide(currentSlide, slides, selections, toggleOption)}</View>
+            <View style={styles.slideCard}>{renderSlide(currentSlide, slides, selections, toggleOption, activeReadLineIndex)}</View>
           </ScrollView>
 
           <View style={styles.storyActions}>
@@ -240,7 +315,6 @@ export default function EmotionizeScreen() {
               <Text style={styles.nextButtonText}>{slideIndex === slides.length - 1 ? 'Reflect' : 'Next'}</Text>
             </Pressable>
           </View>
-          <Text style={styles.footer}>{story} • {progress}</Text>
         </View>
       </SafeAreaView>
     );
@@ -257,23 +331,37 @@ export default function EmotionizeScreen() {
               <Text style={styles.backChevron}>‹</Text>
               <Text style={styles.backControlText}>Spaces</Text>
             </Pressable>
-            <View style={[styles.choiceTitleCard, { backgroundColor: theme.cardSoft }]}>
+            <View style={styles.choiceTitleCard}>
               <Text style={[styles.choiceEyebrow, { color: theme.subtle }]}>{category.name}</Text>
               <Text style={[styles.choiceTitle, { color: theme.text }]}>{category.description}</Text>
             </View>
           </View>
 
           <View style={[styles.panel, { backgroundColor: theme.card }]}>
-            <Text style={[styles.panelTitle, { color: theme.subtle }]}>Available now</Text>
-            {category.feelings.map((feeling) => (
-              <Pressable
-                key={feeling}
-                onPress={() => openStory(feeling as EmotionizeStoryName)}
-                style={({ pressed }) => [styles.feeling, { backgroundColor: '#e1dcf9', borderTopColor: 'rgba(31, 22, 53, 0.1)' }, pressed && styles.rowPressed]}>
-                <Text style={[styles.feelingText, { color: theme.text }]}>{feeling}</Text>
-                <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
-              </Pressable>
-            ))}
+            <Text style={[styles.panelTitle, { color: theme.subtle }]}>Feelings</Text>
+            {category.feelings.map((feeling) => {
+              const isLocked = (category.locked as readonly string[]).includes(feeling);
+
+              return (
+                <Pressable
+                  key={feeling}
+                  onPress={() => openStory(feeling as EmotionizeStoryName)}
+                  style={({ pressed }) => [
+                    styles.feeling,
+                    { backgroundColor: isLocked ? 'rgba(225, 220, 249, 0.45)' : '#e1dcf9', borderTopColor: 'rgba(31, 22, 53, 0.1)' },
+                    pressed && styles.rowPressed,
+                  ]}>
+                  <Text style={[styles.feelingText, { color: theme.text }, isLocked && styles.feelingTextLocked]}>{feeling}</Text>
+                  {isLocked ? (
+                    <View style={styles.lockBadge}>
+                      <Text style={styles.lockBadgeText}>Nomy+</Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.chevron, { color: theme.subtle }]}>›</Text>
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
 
           {category.note ? (
@@ -314,6 +402,33 @@ export default function EmotionizeScreen() {
             </View>
           </View>
         </Modal>
+
+        <Modal
+          animationType="slide"
+          transparent
+          visible={Boolean(lockedFeeling)}
+          onRequestClose={() => setLockedFeeling(null)}>
+          <View style={styles.noteModalRoot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close locked feeling message"
+              onPress={() => setLockedFeeling(null)}
+              style={styles.noteModalScrim}
+            />
+            <View style={styles.unlockSheet}>
+              <View style={styles.noteSheetHandle} />
+              <Text style={styles.unlockTitle}>{lockedFeeling}</Text>
+              <Text style={styles.unlockText}>
+                This feeling is part of the full Emotionize library in Nomy+.
+              </Text>
+              <Pressable
+                onPress={() => setLockedFeeling(null)}
+                style={({ pressed }) => [styles.unlockButton, pressed && styles.readButtonPressed]}>
+                <Text style={styles.unlockButtonText}>Okay</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -321,12 +436,15 @@ export default function EmotionizeScreen() {
   return (
       <SafeAreaView style={[styles.screen, { backgroundColor: theme.screen }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <BackControl label="Support" onPress={() => router.replace('/support')} />
+        <BackControl
+          label={params.origin === 'home' ? 'Home' : 'Support'}
+          onPress={() => goBackToOriginOrReplace(params.origin, '/support')}
+        />
         <View style={styles.waveWrap}>
           <View style={[styles.wave, { backgroundColor: theme.screen }]}>
             <View style={styles.header}>
               <Text style={[styles.stepLabel, { color: theme.subtle }]}>Emotionize</Text>
-              <Text style={[styles.title, { color: theme.text }]}>Which emotional space would you like to explore?</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Explore Your Emotions</Text>
             </View>
           </View>
         </View>
@@ -379,19 +497,77 @@ function normalizeParam(value?: string | string[]) {
   return value ?? '';
 }
 
-function getSlideSpeechText(slide: EmotionizeStorySlide) {
-  const parts = [slide.note, slide.sub];
-
-  if (slide.options?.length) {
-    parts.push('Options.', ...slide.options);
+function getReadableSlideLines(slide: EmotionizeStorySlide) {
+  if (slide.optionGroup || slide.dynamicPattern) {
+    return [];
   }
 
-  return parts
-    .filter(Boolean)
-    .join('\n\n')
-    .replace(/☐/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return splitReadableLines(slide.sub);
+}
+
+function splitReadableLines(text: string) {
+  return text
+    .split('\n')
+    .map((line) => line.replace(/☐/g, '').trim())
+    .filter(Boolean);
+}
+
+async function getTtsAudioUri(lines: string[], cacheKey: string) {
+  const safeKey = cacheKey.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const uri = `${FileSystem.cacheDirectory}emotionize-read-${safeKey}.mp3`;
+  const info = await FileSystem.getInfoAsync(uri);
+
+  if (info.exists) {
+    return uri;
+  }
+
+  const response = await fetch(apiUrl('/api/mobile/emotionize-tts/'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: lines.join('\n\n') }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload?.ok || !payload.audio) {
+    throw new Error(payload?.error || 'Read to me could not create audio.');
+  }
+
+  await FileSystem.writeAsStringAsync(uri, payload.audio, { encoding: FileSystem.EncodingType.Base64 });
+  return uri;
+}
+
+function hashText(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(36);
+}
+
+function estimateTotalReadDuration(lines: string[]) {
+  const words = lines.reduce((total, line) => total + countWords(line), 0);
+  return Math.max(6, words * 0.46 + lines.length * 0.55);
+}
+
+function getActiveLineIndex(lines: string[], currentTime: number, duration: number) {
+  const weights = lines.map((line) => Math.max(1.4, countWords(line) * 0.46 + 0.55));
+  const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+  const safeDuration = duration || estimateTotalReadDuration(lines);
+  let elapsed = 0;
+
+  for (let index = 0; index < weights.length; index += 1) {
+    elapsed += (weights[index] / totalWeight) * safeDuration;
+    if (currentTime <= elapsed) {
+      return index;
+    }
+  }
+
+  return Math.max(0, lines.length - 1);
+}
+
+function countWords(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function renderSlide(
@@ -399,6 +575,7 @@ function renderSlide(
   slides: readonly EmotionizeStorySlide[],
   selections: EmotionizeSelections,
   onToggle: (group: EmotionizeOptionGroupKey, option: string) => void,
+  activeReadLineIndex: number | null,
 ) {
   if (slide.optionGroup && slide.options) {
     return renderOptionSlide(slide, selections, onToggle);
@@ -432,7 +609,23 @@ function renderSlide(
     );
   }
 
-  return <Text style={styles.slideText}>{slide.sub}</Text>;
+  return renderReadableSlideText(slide.sub, activeReadLineIndex);
+}
+
+function renderReadableSlideText(text: string, activeReadLineIndex: number | null) {
+  const lines = splitReadableLines(text);
+
+  return (
+    <View style={styles.readableTextWrap}>
+      {lines.map((line, index) => (
+        <View
+          key={`${line}-${index}`}
+          style={[styles.readableLine, activeReadLineIndex === index && styles.readableLineActive]}>
+          <Text style={[styles.slideText, activeReadLineIndex === index && styles.slideTextActive]}>{line}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function renderPatternText(text: string) {
@@ -515,7 +708,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  header: { alignItems: 'center', gap: space.xs, paddingTop: space.md },
+  header: { alignItems: 'center', gap: space.xs, paddingTop: space.md, paddingBottom: space.sm },
   stepLabel: {
     color: '#817690',
     fontSize: typeScale.eyebrow,
@@ -548,10 +741,6 @@ const styles = StyleSheet.create({
   categoryText: { color: '#1f003d', fontSize: typeScale.cardTitle, fontWeight: '600' },
   choiceHeader: { gap: space.md },
   choiceTitleCard: {
-    borderRadius: 8,
-    backgroundColor: '#e1dcf9',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
     gap: space.sm,
     alignItems: 'center',
   },
@@ -592,6 +781,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   feelingText: { flex: 1, color: '#1f003d', fontSize: typeScale.cardTitle, fontWeight: '600' },
+  feelingTextLocked: { opacity: 0.52 },
+  lockBadge: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(31, 22, 53, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  lockBadgeText: { color: '#5e4f79', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
   chevron: { color: '#b7afc5', fontSize: 24, lineHeight: 26, fontWeight: '400' },
   rowPressed: { opacity: 0.68, backgroundColor: '#f7f5fb' },
   noteRow: {
@@ -655,6 +852,26 @@ const styles = StyleSheet.create({
     borderColor: '#e2dbea',
   },
   noteCloseText: { color: '#3a2c6b', fontSize: 15, fontWeight: '700' },
+  unlockSheet: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 22,
+    paddingTop: 10,
+    paddingBottom: 28,
+    gap: 14,
+  },
+  unlockTitle: { color: '#1f003d', fontSize: typeScale.pageTitle, lineHeight: lineScale.pageTitle, fontWeight: '700', textAlign: 'center' },
+  unlockText: { color: '#5e4f79', fontSize: typeScale.body, lineHeight: lineScale.body, fontWeight: '600', textAlign: 'center' },
+  unlockButton: {
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: '#1f003d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  unlockButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   noteSheetContent: {
     borderRadius: 20,
     backgroundColor: '#ffffff',
@@ -716,6 +933,7 @@ const styles = StyleSheet.create({
   readButtonDisabled: { opacity: 0.42 },
   readButtonText: { color: '#241b3b', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '700' },
   readButtonTextDisabled: { color: '#8a819d' },
+  readError: { color: '#8a3f55', fontSize: typeScale.helper, lineHeight: lineScale.helper, fontWeight: '600', marginTop: 8 },
   progressRow: { flexDirection: 'row', gap: 8 },
   progressBar: { flex: 1, height: 6, borderRadius: 8, backgroundColor: '#c9c0ee', overflow: 'hidden' },
   progressFill: { height: '100%', width: '0%', backgroundColor: '#22163c' },
@@ -730,6 +948,17 @@ const styles = StyleSheet.create({
     padding: space.lg,
   },
   slideText: { color: '#1b1230', fontSize: typeScale.body, lineHeight: 25 },
+  slideTextActive: { color: '#160f27', fontWeight: '700' },
+  readableTextWrap: { gap: 10 },
+  readableLine: {
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginHorizontal: -8,
+  },
+  readableLineActive: {
+    backgroundColor: '#f1f1ff',
+  },
   optionWrap: { gap: space.lg },
   optionList: { gap: space.sm },
   checkboxRow: {
@@ -812,5 +1041,4 @@ const styles = StyleSheet.create({
   nextButton: { minHeight: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1f003d' },
   nextButtonText: { color: '#ffffff', fontSize: typeScale.bodyLarge, fontWeight: '700' },
   pressedPrimary: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  footer: { color: '#3f335a', textAlign: 'center', fontSize: 14 },
 });

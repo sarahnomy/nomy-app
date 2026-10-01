@@ -45,6 +45,7 @@ urlpatterns = [
     path('api/mobile/register/', user_views.mobile_register, name='mobile_register'),
     path('api/mobile/avatar-state/', core_views.mobile_avatar_state, name='mobile_avatar_state'),
     path('api/mobile/support-recommendation/', core_views.mobile_support_recommendation, name='mobile_support_recommendation'),
+    path('api/mobile/emotionize-tts/', core_views.mobile_emotionize_tts, name='mobile_emotionize_tts'),
     path('api/mobile/express-response/', express_views.mobile_express_response, name='mobile_express_response'),
     path('verify-email/<uuid:token>/', user_views.verify_email, name='verify_email'),
     path('reflections/', include('reflections.urls')),

@@ -1,5 +1,6 @@
 import json
 import os
+import base64
 
 import httpx
 from django.http import JsonResponse
@@ -323,3 +324,55 @@ def mobile_support_recommendation(request):
         label = feature_map[feature]
 
     return JsonResponse({"ok": True, "category": category, "feature": feature, "label": label, "reason": reason})
+
+
+@csrf_exempt
+@require_POST
+def mobile_emotionize_tts(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
+
+    text = (payload.get("text") or "").strip()
+    if not text:
+        return JsonResponse({"ok": False, "error": "Please choose something to read first."}, status=400)
+
+    if len(text) > 5000:
+        text = text[:5000].rsplit(" ", 1)[0].strip()
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return JsonResponse({"ok": False, "error": "Read to me is not connected yet."}, status=503)
+
+    model = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+    voice = os.environ.get("OPENAI_TTS_VOICE", "sage")
+
+    try:
+        with httpx.Client(timeout=45.0) as client:
+            response = client.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "voice": voice,
+                    "input": text,
+                    "response_format": "mp3",
+                    "instructions": (
+                        "Read in a calm, warm, steady voice. "
+                        "Use a gentle pace, clear pronunciation, and natural pauses. "
+                        "Avoid sounding overly cheerful, urgent, theatrical, or robotic."
+                    ),
+                },
+            )
+    except httpx.HTTPError:
+        return JsonResponse({"ok": False, "error": "Read to me couldn't be reached just now."}, status=502)
+
+    if response.status_code >= 400:
+        return JsonResponse({"ok": False, "error": "Read to me couldn't create audio just now."}, status=502)
+
+    audio_base64 = base64.b64encode(response.content).decode("ascii")
+    return JsonResponse({"ok": True, "audio": audio_base64, "content_type": "audio/mpeg"})
