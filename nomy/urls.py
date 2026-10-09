@@ -41,6 +41,7 @@ urlpatterns = [
     ),
     path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html'), name='logout'),
     path('api/mobile/login/', user_views.mobile_login, name='mobile_login'),
+    path('api/mobile/delete-account/', user_views.mobile_delete_account, name='mobile_delete_account'),
     path('api/mobile/logout/', user_views.mobile_logout, name='mobile_logout'),
     path('api/mobile/register/', user_views.mobile_register, name='mobile_register'),
     path('api/mobile/avatar-state/', core_views.mobile_avatar_state, name='mobile_avatar_state'),

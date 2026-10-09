@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from .forms import UserRegisterForm
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import transaction
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -154,6 +155,40 @@ def mobile_register(request):
         },
         status=201,
     )
+
+@csrf_exempt
+@require_POST
+def mobile_delete_account(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
+
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
+
+    username = payload.get("username")
+    password = payload.get("password")
+    if not isinstance(username, str) or not username.strip() or not isinstance(password, str) or not password:
+        return JsonResponse(
+            {"ok": False, "error": "Enter your password to confirm account deletion."}, status=400,
+        )
+
+    user = authenticate(request, username=username.strip(), password=password)
+    if user is None:
+        return JsonResponse({"ok": False, "error": "That username or password doesn't match."}, status=401)
+
+    # Bind the confirmation to the account displayed in the app, even if a
+    # different account's valid credentials are accidentally submitted.
+    if str(payload.get("user_id")) != str(user.pk):
+        return JsonResponse(
+            {"ok": False, "error": "Please log in again before deleting your account."}, status=403,
+        )
+
+    with transaction.atomic():
+        user.delete()
+        logout(request)
+    return JsonResponse({"ok": True})
 
 # Create your views here.
 def register(request):
