@@ -170,6 +170,21 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # ------------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Social sign-in remains unavailable until the provider credentials are set.
+GOOGLE_OAUTH_CLIENT_IDS = [value.strip() for value in os.getenv("GOOGLE_OAUTH_CLIENT_IDS", "").split(",") if value.strip()]
+APPLE_SIGN_IN_CLIENT_ID = os.getenv("APPLE_SIGN_IN_CLIENT_ID", "com.nomyminds.nomy")
+APPLE_SIGN_IN_TEAM_ID = os.getenv("APPLE_SIGN_IN_TEAM_ID", "")
+APPLE_SIGN_IN_KEY_ID = os.getenv("APPLE_SIGN_IN_KEY_ID", "")
+APPLE_SIGN_IN_PRIVATE_KEY = os.getenv("APPLE_SIGN_IN_PRIVATE_KEY", "").replace("\\n", "\n")
+
+APPLE_IAP_KEY_ID = os.getenv("APPLE_IAP_KEY_ID", "")
+APPLE_IAP_ISSUER_ID = os.getenv("APPLE_IAP_ISSUER_ID", "")
+APPLE_IAP_PRIVATE_KEY = os.getenv("APPLE_IAP_PRIVATE_KEY", "").replace("\\n", "\n")
+APPLE_IAP_BUNDLE_ID = "com.nomyminds.nomy"
+APPLE_IAP_APP_ID = 6815977137
+APPLE_IAP_ALLOW_SANDBOX = os.getenv("APPLE_IAP_ALLOW_SANDBOX", "True") == "True"
+NOMY_SUBSCRIPTION_PRODUCT_IDS = ["com.nomyminds.nomy.plus.monthly", "com.nomyminds.nomy.plus.yearly"]
+
 LOGIN_REDIRECT_URL = '/'
 
 # --- Email Settings ---

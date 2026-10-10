@@ -1,4 +1,5 @@
 import json
+import logging
 from django.utils import timezone
 
 from django.shortcuts import render, redirect
@@ -15,6 +16,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .models import EmailVerification
+from .mobile_auth import mobile_user, session_response
+from .deletion import delete_account_data
+
+logger = logging.getLogger(__name__)
 
 def debug_email(request):
     return JsonResponse({
@@ -102,11 +107,7 @@ def mobile_login(request):
     return JsonResponse(
         {
             "ok": True,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-            },
+            "user": session_response(user),
         }
     )
 
@@ -114,6 +115,10 @@ def mobile_login(request):
 @csrf_exempt
 @require_POST
 def mobile_logout(request):
+    user = mobile_user(request)
+    if user:
+        import hashlib
+        user.mobile_sessions.filter(token_hash=hashlib.sha256(request.headers["Authorization"][7:].encode()).hexdigest()).delete()
     logout(request)
     return JsonResponse({"ok": True})
 
@@ -147,14 +152,11 @@ def mobile_register(request):
         {
             "ok": True,
             "message": "Account created.",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-            },
+            "user": session_response(user),
         },
         status=201,
     )
+
 
 @csrf_exempt
 @require_POST
@@ -185,9 +187,13 @@ def mobile_delete_account(request):
             {"ok": False, "error": "Please log in again before deleting your account."}, status=403,
         )
 
-    with transaction.atomic():
-        user.delete()
-        logout(request)
+    try:
+        with transaction.atomic():
+            delete_account_data(user)
+            logout(request)
+    except Exception:
+        logger.exception("Account deletion failed")
+        return JsonResponse({"ok": False, "error": "Your account could not be deleted. Please try again or contact hello@nomy.app."}, status=503)
     return JsonResponse({"ok": True})
 
 # Create your views here.

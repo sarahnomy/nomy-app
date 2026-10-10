@@ -12,6 +12,7 @@ staticfiles/
 # Environments and secrets
 .env
 .env.*
+*.p8
 .venv/
 venv/
 env/
@@ -29,4 +30,3 @@ mobile/node_modules/
 mobile/.expo/
 mobile/dist/
 mobile/web-build/
-

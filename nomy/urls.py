@@ -24,6 +24,8 @@ from django.contrib.auth import views as auth_views
 from core import views as core_views
 from express import views as express_views
 from users import views as user_views
+from users import social_views
+from core import mobile_community
 from users.forms import EmailVerificationLoginForm
 from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
@@ -41,9 +43,20 @@ urlpatterns = [
     ),
     path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html'), name='logout'),
     path('api/mobile/login/', user_views.mobile_login, name='mobile_login'),
-    path('api/mobile/delete-account/', user_views.mobile_delete_account, name='mobile_delete_account'),
     path('api/mobile/logout/', user_views.mobile_logout, name='mobile_logout'),
     path('api/mobile/register/', user_views.mobile_register, name='mobile_register'),
+    path('api/mobile/delete-account/', user_views.mobile_delete_account, name='mobile_delete_account'),
+    path('api/mobile/social/providers/', social_views.mobile_social_providers, name='mobile_social_providers'),
+    path('api/mobile/social/challenge/', social_views.mobile_social_challenge, name='mobile_social_challenge'),
+    path('api/mobile/social/login/', social_views.mobile_social_login, name='mobile_social_login'),
+    path('api/mobile/social/delete-account/', social_views.mobile_social_delete_account, name='mobile_social_delete_account'),
+    path('api/mobile/stories/', mobile_community.stories, name='mobile_stories'),
+    path('api/mobile/stories/submit/', mobile_community.submit_story, name='mobile_story_submit'),
+    path('api/mobile/stories/<uuid:story_id>/', mobile_community.story_detail, name='mobile_story_detail'),
+    path('api/mobile/stories/<uuid:story_id>/report/', mobile_community.report_story, name='mobile_story_report'),
+    path('api/mobile/blocks/', mobile_community.blocks, name='mobile_blocks'),
+    path('api/mobile/subscription/', mobile_community.subscription, name='mobile_subscription'),
+    path('api/mobile/subscription/webhook/', mobile_community.subscription_webhook, name='mobile_subscription_webhook'),
     path('api/mobile/avatar-state/', core_views.mobile_avatar_state, name='mobile_avatar_state'),
     path('api/mobile/support-recommendation/', core_views.mobile_support_recommendation, name='mobile_support_recommendation'),
     path('api/mobile/emotionize-tts/', core_views.mobile_emotionize_tts, name='mobile_emotionize_tts'),

@@ -332,7 +332,15 @@ def safe_list(value):
 
 
 def get_mobile_request_user(request, payload):
+    from users.mobile_auth import mobile_user
+    verified = mobile_user(request)
+    if verified:
+        verified._mobile_verified = True
+        return verified
+    if request.headers.get("Authorization"):
+        return None
     if request.user.is_authenticated:
+        request.user._mobile_verified = True
         return request.user
 
     user_id = payload.get("user_id")
@@ -341,11 +349,22 @@ def get_mobile_request_user(request, payload):
     except (TypeError, ValueError):
         return None
 
-    return User.objects.filter(id=user_id, is_active=True).first()
+    legacy_user = User.objects.filter(id=user_id, is_active=True).first()
+    if legacy_user:
+        legacy_user._mobile_verified = False
+    return legacy_user
 
 
 def user_has_unlimited_express_ai(user):
-    return bool(user and (user.is_staff or user.is_superuser))
+    if not user or not getattr(user, "_mobile_verified", False):
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    from users.subscriptions import refresh_entitlement, SubscriptionUnavailable
+    try:
+        return refresh_entitlement(user)[0]
+    except SubscriptionUnavailable:
+        return False
 
 
 def get_express_ai_limit_state(user):
