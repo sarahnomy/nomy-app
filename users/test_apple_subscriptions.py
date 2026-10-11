@@ -17,7 +17,8 @@ from django.utils import timezone
 
 from .mobile_auth import issue_mobile_session
 from .models import AccountProfile, AppleSubscription, SubscriptionEntitlement
-from .subscriptions import InvalidApplePurchase, attach_purchase, decode_signed, refresh_entitlement
+from .subscriptions import (InvalidApplePurchase, PurchaseStatusClient, _cached_verifier,
+                            attach_purchase, decode_signed, refresh_entitlement, verifier)
 
 
 @override_settings(APPLE_IAP_KEY_ID='key', APPLE_IAP_ISSUER_ID='issuer', APPLE_IAP_PRIVATE_KEY='private')
@@ -41,7 +42,7 @@ class AppleSubscriptionTests(TestCase):
         production_check.verify_and_decode_notification.side_effect = VerificationException(VerificationStatus.INVALID_ENVIRONMENT)
         self.verifier_patch = patch('users.subscriptions.verifier', side_effect=lambda environment:
                                    self.check if environment == Environment.SANDBOX else production_check)
-        self.api_patch = patch('users.subscriptions.AppStoreServerAPIClient', return_value=self.client_mock)
+        self.api_patch = patch('users.subscriptions.PurchaseStatusClient', return_value=self.client_mock)
         self.verifier_patch.start(); self.api_patch.start()
         self.addCleanup(self.verifier_patch.stop); self.addCleanup(self.api_patch.stop)
 
@@ -60,6 +61,20 @@ class AppleSubscriptionTests(TestCase):
 
     def post(self, payload):
         return self.client.post(reverse('mobile_subscription'), json.dumps(payload), content_type='application/json', **self.headers)
+
+    def test_preflight_does_not_contact_apple_even_if_apple_is_unavailable(self):
+        self.client_mock.get_all_subscription_statuses.side_effect = TimeoutError('slow Apple')
+        result = self.post({'preflight': True})
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json()['configured'])
+        self.assertFalse(result.json()['active'])
+        self.client_mock.get_all_subscription_statuses.assert_not_called()
+
+    def test_preflight_does_not_unlock_expired_entitlement(self):
+        SubscriptionEntitlement.objects.create(user=self.user, active=True,
+            expires_at=timezone.now() - timedelta(seconds=1), product_id=self.product)
+        self.assertFalse(self.post({'preflight': True}).json()['active'])
+        self.client_mock.get_all_subscription_statuses.assert_not_called()
 
     def test_successful_apple_purchase_persists_verified_entitlement(self):
         result = self.post({'signed_transaction': 'transaction-jws'})
@@ -192,3 +207,23 @@ class AppleSignatureTests(TestCase):
         encode = lambda obj: base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b'=').decode()
         forged = encode({'alg': 'none'}) + '.' + encode({'bundleId': 'com.nomyminds.nomy', 'environment': 'Sandbox'}) + '.'
         with self.assertRaises(InvalidApplePurchase): decode_signed(forged)
+
+
+class AppleVerificationPerformanceTests(TestCase):
+    def test_status_http_call_uses_short_connect_and_read_timeouts(self):
+        with patch('users.subscriptions.requests.request') as request:
+            client = object.__new__(PurchaseStatusClient)
+            result = client._execute_request('GET', 'https://example.test', {}, {}, None, None)
+            self.assertIs(result, request.return_value)
+            self.assertEqual(request.call_args.kwargs['timeout'], (2, 6))
+
+    def test_verifier_reuses_apple_certificate_cache_without_disabling_online_checks(self):
+        _cached_verifier.cache_clear()
+        self.addCleanup(_cached_verifier.cache_clear)
+        with patch('users.subscriptions.SignedDataVerifier') as factory:
+            first = verifier(Environment.SANDBOX)
+            self.assertIs(verifier(Environment.SANDBOX), first)
+            self.assertEqual(factory.call_count, 1)
+            self.assertIs(factory.call_args.args[1], True)
+            verifier(Environment.PRODUCTION)
+            self.assertEqual(factory.call_count, 2)

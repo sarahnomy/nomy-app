@@ -4,11 +4,12 @@ from functools import wraps
 
 from django.db.models import Q
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from users.mobile_auth import mobile_user
-from users.models import AccountProfile
+from users.models import AccountProfile, SubscriptionEntitlement
 from users.subscriptions import (InvalidApplePurchase, SubscriptionUnavailable, apple_configured,
                                  attach_purchase, process_notification, refresh_entitlement)
 from appstoreserverlibrary.signed_data_verifier import VerificationException
@@ -67,6 +68,10 @@ def visible_stories(user):
     return stories.select_related("author")
 
 
+def has_story_library(user):
+    return bool(user and refresh_entitlement(user)[0])
+
+
 def serialize_story(story, user):
     profile, _ = AccountProfile.objects.get_or_create(user=story.author)
     label = story.display_name if story.appearance == "display-name" else "Anonymous author"
@@ -87,6 +92,10 @@ def stories(request):
         if not request.mobile_user:
             raise ApiError("Please log in to view your stories.", 401)
         query = query.filter(author=request.mobile_user)
+    elif not has_story_library(request.mobile_user):
+        # The three selected Free stories are bundled in the mobile app.
+        # Always retain access to a user's own submissions.
+        query = query.filter(author=request.mobile_user) if request.mobile_user else query.none()
     if request.GET.get("author"):
         query = query.filter(author__mobile_profile__public_id=identifier(request.GET["author"]))
     response = JsonResponse({"ok": True, "stories": [serialize_story(item, request.mobile_user) for item in query[:200]]})
@@ -100,6 +109,8 @@ def story_detail(request, story_id):
     story = visible_stories(request.mobile_user).filter(pk=story_id).first()
     if not story:
         raise ApiError("This story is no longer available.", 404)
+    if story.author_id != getattr(request.mobile_user, "pk", None) and not has_story_library(request.mobile_user):
+        raise ApiError("Unlock the full Stories library with Nomy+.", 403)
     return JsonResponse({"ok": True, "story": serialize_story(story, request.mobile_user)})
 
 
@@ -175,6 +186,12 @@ def subscription(request):
     payload = body(request)
     if "signed_transaction" in payload:
         active, entitlement = attach_purchase(request.mobile_user, payload["signed_transaction"])
+    elif payload.get("preflight") is True:
+        # Authentication/configuration must not wait for Apple's network. Only
+        # return an existing server-verified entitlement, never grant new access.
+        entitlement, _ = SubscriptionEntitlement.objects.get_or_create(user=request.mobile_user)
+        active = bool(apple_configured() and entitlement.active and entitlement.expires_at
+                      and entitlement.expires_at > timezone.now())
     else:
         active, entitlement = refresh_entitlement(request.mobile_user, force=True)
     return JsonResponse({"ok": True, "active": active, "expires_at": entitlement.expires_at,

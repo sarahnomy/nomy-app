@@ -66,7 +66,8 @@ class CommunityTests(TestCase):
         self.assertEqual(self.post('mobile_story_report', {'reason': 'invalid'}, [self.story.pk]).status_code, 400)
         self.assertFalse(StoryReport.objects.exists())
 
-    def test_block_filters_feed_detail_author_and_unblock_restores(self):
+    @patch('core.mobile_community.has_story_library', return_value=True)
+    def test_block_filters_feed_detail_author_and_unblock_restores(self, premium):
         payload = {'author_id': str(self.author_profile.public_id), 'action': 'block'}
         self.assertEqual(self.post('mobile_blocks', payload).status_code, 200)
         self.assertEqual(self.post('mobile_blocks', payload).status_code, 200)
@@ -81,6 +82,19 @@ class CommunityTests(TestCase):
         self.assertEqual(self.client.get(reverse('mobile_blocks'), **author_headers).json()['blocked_accounts'], [])
         self.assertEqual(self.post('mobile_blocks', {**payload, 'action': 'unblock'}).status_code, 200)
         self.assertEqual(len(self.client.get(reverse('mobile_stories'), **self.headers).json()['stories']), 1)
+
+    def test_free_and_anonymous_readers_cannot_fetch_paid_story_bodies(self):
+        for headers in ({}, self.headers):
+            self.assertEqual(self.client.get(reverse('mobile_stories'), **headers).json()['stories'], [])
+            self.assertEqual(self.client.get(reverse('mobile_story_detail', args=[self.story.pk]), **headers).status_code, 403)
+        self.story.author = self.user; self.story.save()
+        self.assertEqual(self.client.get(reverse('mobile_story_detail', args=[self.story.pk]), **self.headers).status_code, 200)
+        self.assertEqual(len(self.client.get(reverse('mobile_stories'), **self.headers).json()['stories']), 1)
+
+    @patch('core.mobile_community.refresh_entitlement', return_value=(True, None))
+    def test_verified_premium_unlocks_community_library(self, entitlement):
+        self.assertEqual(len(self.client.get(reverse('mobile_stories'), **self.headers).json()['stories']), 1)
+        self.assertEqual(self.client.get(reverse('mobile_story_detail', args=[self.story.pk]), **self.headers).status_code, 200)
 
     def test_self_block_and_expired_sessions_are_rejected(self):
         profile = AccountProfile.objects.create(user=self.user)

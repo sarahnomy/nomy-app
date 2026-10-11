@@ -31,12 +31,27 @@ def root_certificates():
     return [path.read_bytes() for path in sorted(Path(__file__).with_name('apple_certificates').glob('*.cer'))]
 
 
+class PurchaseStatusClient(AppStoreServerAPIClient):
+    """Fail a slow status lookup before the mobile HTTP deadline."""
+
+    def _execute_request(self, method, url, params, headers, json, data):
+        return requests.request(method, url, params=params, headers=headers,
+                                json=json, data=data, timeout=(2, 6))
+
+
+@lru_cache(maxsize=4)
+def _cached_verifier(roots, environment, bundle_id, app_id):
+    # Keep Apple's built-in, time-limited certificate cache. Signed transaction
+    # signatures and account/product/expiry checks still run for every purchase.
+    return SignedDataVerifier(list(roots), True, environment, bundle_id, app_id)
+
+
 def verifier(environment):
     roots = root_certificates()
     if not roots:
         raise SubscriptionUnavailable('Subscription verification is not configured. Please try again later.')
-    return SignedDataVerifier(roots, True, environment, settings.APPLE_IAP_BUNDLE_ID,
-                              settings.APPLE_IAP_APP_ID if environment == Environment.PRODUCTION else None)
+    return _cached_verifier(tuple(roots), environment, settings.APPLE_IAP_BUNDLE_ID,
+                            settings.APPLE_IAP_APP_ID if environment == Environment.PRODUCTION else None)
 
 
 def decode_signed(signed, notification=False):
@@ -86,7 +101,7 @@ def attach_purchase(user, signed_transaction):
 
 def _apple_status(subscription, profile):
     environment = Environment(subscription.environment)
-    client = AppStoreServerAPIClient(settings.APPLE_IAP_PRIVATE_KEY.encode(), settings.APPLE_IAP_KEY_ID,
+    client = PurchaseStatusClient(settings.APPLE_IAP_PRIVATE_KEY.encode(), settings.APPLE_IAP_KEY_ID,
                                     settings.APPLE_IAP_ISSUER_ID, settings.APPLE_IAP_BUNDLE_ID, environment)
     response = client.get_all_subscription_statuses(subscription.original_transaction_id)
     if response.bundleId != settings.APPLE_IAP_BUNDLE_ID or response.environment != environment:
