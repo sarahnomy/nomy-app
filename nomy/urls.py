@@ -1,3 +1,4 @@
+from .health import health
 from users import creative_views
 """
 URL configuration for nomy project.
@@ -32,6 +33,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
 
 urlpatterns = [
+    path("api/mobile/health/", health, name="mobile_health"),
     path('admin/', admin.site.urls),
     path('register/', user_views.register, name='register'),
     path(

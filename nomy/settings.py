@@ -5,7 +5,7 @@ Updated for deployment on Render / Railway (auto-deploy from GitHub)
 from django.contrib.auth import get_user_model
 import os
 from pathlib import Path
-import dj_database_url
+from .database import database_config
 import environ
 env = environ.Env()
 environ.Env.read_env()
@@ -123,13 +123,7 @@ TEMPLATES = [
 # ------------------------------------------------------
 # DATABASE
 # ------------------------------------------------------
-DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-        ssl_require=False
-    )
-}
+DATABASES = {"default": database_config(BASE_DIR)}
 
 
 # ------------------------------------------------------
