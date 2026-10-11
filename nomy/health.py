@@ -16,4 +16,5 @@ def health(request):
     response['Cache-Control'] = 'no-store'
     response['X-Nomy-Database-Guard'] = '1'
     response['X-Nomy-Subscription-Revision'] = '2'
+    response['X-Nomy-Story-Admin-Revision'] = '1'
     return response

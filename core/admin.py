@@ -20,6 +20,12 @@ class StoryAdmin(admin.ModelAdmin):
     readonly_fields = ("id", "author", "client_id", "created_at")
     actions = (publish_stories, reject_stories)
 
+    def get_readonly_fields(self, request, obj=None):
+        # New admin-created stories need an author; existing ownership stays fixed.
+        if obj is None:
+            return tuple(field for field in self.readonly_fields if field != "author")
+        return self.readonly_fields
+
 
 @admin.action(description="Mark selected reports reviewed")
 def mark_reviewed(modeladmin, request, queryset):
