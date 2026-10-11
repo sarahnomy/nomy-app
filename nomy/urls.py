@@ -1,3 +1,4 @@
+from users import creative_views
 """
 URL configuration for nomy project.
 
@@ -54,6 +55,8 @@ urlpatterns = [
     path('api/mobile/stories/submit/', mobile_community.submit_story, name='mobile_story_submit'),
     path('api/mobile/stories/<uuid:story_id>/', mobile_community.story_detail, name='mobile_story_detail'),
     path('api/mobile/stories/<uuid:story_id>/report/', mobile_community.report_story, name='mobile_story_report'),
+    path('api/mobile/artworks/', creative_views.artworks, name='mobile_artworks'),
+    path('api/mobile/artworks/<uuid:artwork_id>/', creative_views.artwork_detail, name='mobile_artwork_detail'),
     path('api/mobile/blocks/', mobile_community.blocks, name='mobile_blocks'),
     path('api/mobile/subscription/', mobile_community.subscription, name='mobile_subscription'),
     path('api/mobile/subscription/webhook/', mobile_community.subscription_webhook, name='mobile_subscription_webhook'),

@@ -7,3 +7,11 @@ class EmailVerificationAdmin(admin.ModelAdmin):
     list_display = ("user", "token", "created_at", "used_at")
     search_fields = ("user__username", "user__email", "token")
     list_filter = ("used_at", "created_at")
+
+
+from .models import CreativeArtwork
+
+@admin.register(CreativeArtwork)
+class CreativeArtworkAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'created_at', 'updated_at')
+    search_fields = ('title', 'user__username')

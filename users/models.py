@@ -73,3 +73,15 @@ class EmailVerification(models.Model):
 
     def __str__(self):
         return f"EmailVerification(user={self.user.username}, used={self.is_used})"
+
+
+class CreativeArtwork(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='creative_artworks')
+    title = models.CharField(max_length=80)
+    document = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
