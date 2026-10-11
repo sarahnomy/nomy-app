@@ -80,6 +80,7 @@ def serialize_story(story, user):
             "readTime": f"{max(1, len(story.body.split()) // 200)} min read", "excerpt": story.body[:180],
             "baseHearts": 0, "authorId": str(profile.public_id), "authorLabel": label,
             "isOwn": bool(user and story.author_id == user.pk), "appearance": story.appearance,
+            "hasReported": bool(user and StoryReport.objects.filter(reporter=user, story=story).exists()),
             "status": {"pending": "In review", "published": "Published", "rejected": "Rejected"}[story.status],
             "date": story.created_at.date().isoformat()}
 
@@ -127,9 +128,10 @@ def submit_story(request):
         raise ApiError("Choose how your story should appear.")
     if appearance == "display-name" and not display_name.strip():
         raise ApiError("Enter a display name or choose anonymous.")
-    # Writing and submitting remains available to every logged-in user; Plus unlocks the other premium libraries.
     if payload.get("accept_guidelines") is not True:
         raise ApiError("Please accept the community guidelines before submitting.")
+    if not has_story_library(request.mobile_user):
+        raise ApiError("Sharing a story requires an active Nomy+ subscription.", 403)
     story, created = Story.objects.get_or_create(author=request.mobile_user, client_id=identifier(payload.get("client_id")),
         defaults={"title": title.strip(), "body": content.strip(), "appearance": appearance,
                   "display_name": display_name.strip() if appearance == "display-name" else ""})

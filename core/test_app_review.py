@@ -30,7 +30,8 @@ class CommunityTests(TestCase):
         return self.client.post(reverse(name, args=args), json.dumps(body), content_type='application/json',
                                 **(self.headers if headers is None else headers))
 
-    def test_story_submission_persists_and_retries_do_not_duplicate(self):
+    @patch('core.mobile_community.refresh_entitlement', return_value=(True, None))
+    def test_story_submission_persists_and_retries_do_not_duplicate(self, entitlement):
         body = {'title': 'My experience', 'story': 'An honest story', 'appearance': 'anonymous',
                 'client_id': str(uuid.uuid4()), 'accept_guidelines': True}
         self.assertEqual(self.post('mobile_story_submit', body).status_code, 201)
@@ -42,6 +43,15 @@ class CommunityTests(TestCase):
         self.assertNotIn(str(story.pk), [entry['id'] for entry in public])
         own = self.client.get(reverse('mobile_stories') + '?mine=1', **self.headers).json()['stories']
         self.assertEqual(own[0]['id'], str(story.pk))
+
+    @patch('core.mobile_community.refresh_entitlement', return_value=(False, None))
+    def test_free_account_cannot_submit_story(self, entitlement):
+        payload = {'title': 'My story', 'story': 'My experience', 'appearance': 'anonymous',
+                   'client_id': str(uuid.uuid4()), 'accept_guidelines': True}
+        response = self.post('mobile_story_submit', payload)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('Nomy+', response.json()['error'])
+        self.assertFalse(Story.objects.filter(author=self.user).exists())
 
     def test_submission_requires_valid_bearer_and_guidelines(self):
         body = {'title': 'Title', 'story': 'Body', 'appearance': 'anonymous', 'client_id': str(uuid.uuid4())}
@@ -55,6 +65,10 @@ class CommunityTests(TestCase):
         second = self.post('mobile_story_report', data, [self.story.pk])
         self.assertFalse(first.json()['already_reported'])
         self.assertTrue(second.json()['already_reported'])
+        from core.mobile_community import serialize_story
+        self.assertTrue(serialize_story(self.story, self.user)['hasReported'])
+        self.assertFalse(serialize_story(self.story, self.author)['hasReported'])
+        self.assertFalse(serialize_story(self.story, None)['hasReported'])
         report = StoryReport.objects.get()
         self.assertEqual(report.reporter, self.user)
         self.assertEqual(report.reason, 'harassment')
@@ -140,8 +154,6 @@ class CompleteBackendFlowTests(TestCase):
         author = User.objects.create_user('community-author')
         profile = AccountProfile.objects.create(user=author)
         published = Story.objects.create(author=author, title='A community experience', body='A story.', appearance='anonymous', status='published')
-        own = self.post('mobile_story_submit', {'title': 'My story', 'story': 'My account of today.', 'appearance': 'anonymous', 'client_id': str(uuid.uuid4()), 'accept_guidelines': True}, token2)
-        self.assertEqual(own.status_code, 201)
         self.assertEqual(self.post('mobile_story_report', {'reason': 'spam'}, token2, [published.pk]).status_code, 200)
         self.assertEqual(self.post('mobile_blocks', {'author_id': str(profile.public_id), 'action': 'block'}, token2).status_code, 200)
         EmotionReflection.objects.create(user_id=user_id, date=timezone.now().date(), emotion='Calm', text='Private')
@@ -156,6 +168,8 @@ class CompleteBackendFlowTests(TestCase):
         status.return_value = [(timezone.now() + timedelta(days=30), product)]
         self.assertTrue(self.post('mobile_subscription', {'signed_transaction': 'signed-apple-purchase'}, token2).json()['active'])
         self.assertTrue(self.post('mobile_subscription', {}, token2).json()['active'])
+        own = self.post('mobile_story_submit', {'title': 'My story', 'story': 'My account of today.', 'appearance': 'anonymous', 'client_id': str(uuid.uuid4()), 'accept_guidelines': True}, token2)
+        self.assertEqual(own.status_code, 201)
         deleted = self.post('mobile_delete_account', {'user_id': user_id, 'username': credentials['username'], 'password': credentials['password1']}, token2)
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(User.objects.filter(pk=user_id).exists())

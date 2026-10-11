@@ -17,4 +17,5 @@ def health(request):
     response['X-Nomy-Database-Guard'] = '1'
     response['X-Nomy-Subscription-Revision'] = '2'
     response['X-Nomy-Story-Admin-Revision'] = '1'
+    response['X-Nomy-Story-Safety-Revision'] = '1'
     return response
