@@ -8,6 +8,8 @@ class HealthTests(TestCase):
     def test_health_checks_connection_and_only_reports_vendor(self):
         response = self.client.get(reverse('mobile_health'))
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        self.assertEqual(response['X-Nomy-Database-Guard'], '1')
         self.assertEqual(response.json(), {'ok': True, 'database': 'sqlite'})
 
     def test_database_failure_does_not_expose_credentials(self):

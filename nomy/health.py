@@ -12,4 +12,7 @@ def health(request):
             cursor.fetchone()
     except DatabaseError:
         return JsonResponse({'ok': False}, status=503)
-    return JsonResponse({'ok': True, 'database': connection.vendor})
+    response = JsonResponse({'ok': True, 'database': connection.vendor})
+    response['Cache-Control'] = 'no-store'
+    response['X-Nomy-Database-Guard'] = '1'
+    return response
