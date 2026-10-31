@@ -76,31 +76,32 @@ def mobile_login(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
 
-    username = (payload.get("username") or "").strip()
-    password = payload.get("password") or ""
-
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "error": "Invalid request body."}, status=400)
+    username = payload.get("username", "")
+    password = payload.get("password", "")
+    if not isinstance(username, str) or not isinstance(password, str):
+        return JsonResponse({"ok": False, "error": "Invalid login inputs."}, status=400)
+    username = username.strip()
     if not username or not password:
         return JsonResponse(
-            {"ok": False, "error": "Please enter both your username and password."},
-            status=400,
+            {"ok": False, "error": "Please enter your email or username and password."}, status=400,
         )
 
-    user = authenticate(request, username=username, password=password)
+    # Preserve exact username logins. Email is not unique in Django's User model;
+    # never choose an arbitrary account when an email matches several users.
+    candidate = User.objects.filter(username=username).first()
+    if candidate is None:
+        matches = list(User.objects.filter(email__iexact=username)[:2])
+        candidate = matches[0] if len(matches) == 1 else None
+    user = authenticate(request, username=candidate.username if candidate else username, password=password)
     if user is None:
-        try:
-            existing_user = UserRegisterForm.Meta.model.objects.get(username__iexact=username)
-        except UserRegisterForm.Meta.model.DoesNotExist:
-            existing_user = None
-
-        if existing_user is not None and not existing_user.is_active and existing_user.check_password(password):
+        if candidate is not None and not candidate.is_active and candidate.check_password(password):
             return JsonResponse(
-                {"ok": False, "error": "Please verify your email before logging in."},
-                status=403,
+                {"ok": False, "error": "Please verify your email before logging in."}, status=403,
             )
-
         return JsonResponse(
-            {"ok": False, "error": "That username or password doesn't match."},
-            status=401,
+            {"ok": False, "error": "That email, username or password doesn't match."}, status=401,
         )
 
     login(request, user)

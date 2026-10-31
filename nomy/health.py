@@ -14,6 +14,7 @@ def health(request):
         return JsonResponse({'ok': False}, status=503)
     response = JsonResponse({'ok': True, 'database': connection.vendor})
     response['Cache-Control'] = 'no-store'
+    response['X-Nomy-Login-Revision'] = '1'
     response['X-Nomy-Database-Guard'] = '1'
     response['X-Nomy-Subscription-Revision'] = '2'
     response['X-Nomy-Story-Admin-Revision'] = '1'
