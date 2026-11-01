@@ -31,3 +31,16 @@ class ExpressReflection(models.Model):
 
     def __str__(self):
         return f"{self.user} – {self.date}"
+
+class AccountSave(models.Model):
+    """Private saves; ownership is always taken from the bearer session."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=20)
+    key = models.CharField(max_length=100)
+    data = models.JSONField(default=dict)
+    audio = models.BinaryField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'kind', 'key'], name='unique_account_save')]
+        ordering = ['-created_at', '-id']
